@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Configurações de build, segurança e metadados comuns: ..\Directory.Build.props -->
+
+  <PropertyGroup>
+    <RootNamespace>TEC.ORM.SqlServer</RootNamespace>
+    <Description>Conecta o TEC.ORM ao banco de dados da aplicação: obtém a conexão do cofre de segredos, exclui logicamente, recusa escritas nas consultas de leitura e audita cada operação sem expor dados.</Description>
+    <PackageTags>orm;sqlserver;entityframework;dapper;soft-delete;vault;opentelemetry;tec</PackageTags>
+    <!--
+      Native AOT: desligado de propósito. EF Core (modelo dinâmico, proxies, expressões compiladas) e Dapper (Reflection.Emit)
+      não são compatíveis com trimming/AOT. Os demais analisadores de segurança continuam valendo como erro.
+    -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- EF Core acompanha o runtime: 8.x no net8.0 e 10.x no net10.0 (ambos LTS) -->
+  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <!-- Microsoft.Extensions.* 10.x nos dois TFMs (suportam net8.0), alinhado ao TEC.Vault -->
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
+
+  <!--
+    Satélite da família TEC.ORM com acesso aos internos do núcleo (InternalsVisibleTo): usa os polyfills (ex.: Lock no net8.0)
+    já compilados no TEC.ORM; uma segunda cópia local seria o conflito CS0436.
+  -->
+  <ItemGroup>
+    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
+  </ItemGroup>
+
+  <!-- Componentes TEC do feed interno (tec-interno): TEC.Vault e TEC.Cqrs; o TEC.Core chega pelo TEC.ORM -->
+  <ItemGroup>
+    <ProjectReference Include="..\TEC.ORM\TEC.ORM.csproj" />
+    <TecReference Include="TEC.Vault" />
+    <TecReference Include="TEC.Cqrs" />
+  </ItemGroup>
+
+</Project>

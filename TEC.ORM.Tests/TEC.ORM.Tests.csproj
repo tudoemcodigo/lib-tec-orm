@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unitários (sem categoria: sem banco, EF Core InMemory e TEC.Vault InMemory) e de integração com o SQL Server (categoria
+    Integracao). A conexão chega sempre pelo TEC.Vault: em memória a partir de TEC_TESTES_ORM_SQL_CONEXAO, ou do Key Vault de
+    testes quando TEC_TESTES_ORM_SQL_SEGREDO existir (ver Shared/TestDatabase.cs, compartilhado com o TEC.ORM.LoadTests). Sem
+    nenhuma das duas, os testes de integração se pulam com o motivo. Seleção sempre por categoria (TestCategories).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TEC.ORM.Tests</RootNamespace>
+    <!-- Mesmo id em todos os projetos de teste dos componentes TEC: um único "dotnet user-secrets set" vale para todos -->
+    <UserSecretsId>tudoemcodigo-tec-testes</UserSecretsId>
+  </PropertyGroup>
+
+  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="TEC.ORM.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="TUnit" />
+    <!-- Testes de propriedade / fuzzing (Security/Fuzzing): só no projeto de testes, os pacotes não dependem dele -->
+    <PackageReference Include="FsCheck" />
+    <!--
+      Parser oficial do T-SQL (o mesmo do SQL Server/SSDT): oráculo do fuzzing diferencial da verificação de somente leitura.
+      Só nos testes: a verificação em produção não depende dele.
+    -->
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" />
+  </ItemGroup>
+
+  <!--
+    Testes do gerador: compilam código em memória com o Roslyn (4.12 ou mais novo, a versão contra a qual o gerador é
+    compilado). No net10.0 o Roslyn 5.x já vem pelo EF Core Design. No net8.0 o EF Core Design 8 fixa o Workspaces 4.5 (só
+    usado pelo dotnet ef, não nos testes): o Roslyn sobe para 4.12 e o aviso de restrição (NU1608) é esperado.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Gerador do mapeamento: roda nesta compilação (DTOs de teste) e é referenciado pelos testes de diagnóstico -->
+    <ProjectReference Include="..\TEC.ORM.Mapping.Generator\TEC.ORM.Mapping.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\TEC.ORM.SqlServer\TEC.ORM.SqlServer.csproj" />
+    <TecReference Include="TEC.Vault.InMemory" />
+    <TecReference Include="TEC.Vault.AzureKeyVault" />
+  </ItemGroup>
+
+  <!-- Script do database first, aplicado pela fixture de integração -->
+  <ItemGroup>
+    <None Update="Database\DbFirst\dbfirst.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Configuração local dos testes de integração (seção TecTestes; arquivo ignorado pelo git, copiado para a saída) -->
+  <ItemGroup>
+    <None Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
+  </ItemGroup>
+
+</Project>

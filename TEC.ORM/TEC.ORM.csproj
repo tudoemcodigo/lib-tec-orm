@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Configurações de build, segurança e metadados comuns: ..\Directory.Build.props -->
+
+  <PropertyGroup>
+    <RootNamespace>TEC.ORM</RootNamespace>
+    <Description>Persistência padronizada: CRUD para qualquer entidade, consultas seguras, exclusão lógica, paginação e conversão automática entre entidades e DTOs, com erros de mapeamento detectados antes da execução.</Description>
+    <PackageTags>orm;repository;specification;soft-delete;persistence;dto;mapping;source-generator;tec</PackageTags>
+  </PropertyGroup>
+
+  <!-- Camada de domínio/aplicação: só o TEC.Core (feed interno, tec-interno). Nada de EF Core, Dapper ou SqlClient aqui. -->
+  <ItemGroup>
+    <TecReference Include="TEC.Core" />
+  </ItemGroup>
+
+  <!-- Satélite da mesma família (mesma versão em toda publicação): usa os internos do núcleo, ex.: Internal/ParameterReplacer -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="TEC.ORM.SqlServer" />
+  </ItemGroup>
+
+  <!--
+    Gerador do mapeamento entidade ↔ DTO: compilado antes (sem referenciar o assembly) e empacotado como analisador, para que
+    quem instala o TEC.ORM tenha a geração ligada. Dentro desta solução, os projetos consumidores referenciam o gerador direto
+    com OutputItemType="Analyzer".
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\TEC.ORM.Mapping.Generator\TEC.ORM.Mapping.Generator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="..\TEC.ORM.Mapping.Generator\bin\$(Configuration)\netstandard2.0\TEC.ORM.Mapping.Generator.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+</Project>

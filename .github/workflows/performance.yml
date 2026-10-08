@@ -1,0 +1,96 @@
+name: Performance
+
+# Suítes pesadas e de carga: só sob demanda (Actions -> Performance -> Run workflow). Não rodam no PR nem na publicação.
+#   rapida     -> TEC.ORM.LoadTests [Carga-CI]: carga curta com limites folgados (input suite = rapida ou todas)
+#   carga      -> TEC.ORM.LoadTests [Carga-Pesada]: carga sustentada, tempestade no pool, volume e soak (SQL Server em container)
+#   seguranca  -> TEC.ORM.Tests [Seguranca-Pesada]
+#   benchmarks -> TEC.ORM.Benchmarks, só no disparo manual
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Suítes de carga: pesadas (Carga-Pesada e Seguranca-Pesada), rapida (Carga-CI) ou todas"
+        type: choice
+        options: [pesadas, rapida, todas]
+        default: pesadas
+      soak_segundos:
+        description: "Duração do soak (segundos)"
+        type: number
+        default: 600
+      duracao_segundos:
+        description: "Duração da carga sustentada no SQL Server (segundos)"
+        type: number
+        default: 120
+      concorrencia:
+        description: "Workers simultâneos na carga sustentada e no soak"
+        type: number
+        default: 32
+      linhas:
+        description: "Contas gravadas no teste de volume"
+        type: number
+        default: 200000
+      benchmarks:
+        description: "Rodar também os benchmarks"
+        type: boolean
+        default: false
+      benchmark_filtro:
+        description: "Filtro do BenchmarkDotNet (* = todos)"
+        type: string
+        default: "*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  rapida:
+    if: inputs.suite != 'pesadas'
+    uses: tudoemcodigo/tec-workflows/.github/workflows/dotnet-test.yml@v1
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    with:
+      name: carga rápida
+      tests: TEC.ORM.LoadTests /*/*/*/*[Category=Carga-CI]
+      private-feed: true
+      setup-script: .github/scripts/integration-setup.sh
+      teardown-script: .github/scripts/integration-teardown.sh
+      artifact: carga
+
+  pesados:
+    if: inputs.suite != 'rapida'
+    uses: tudoemcodigo/tec-workflows/.github/workflows/dotnet-test.yml@v1
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    with:
+      name: suítes pesadas
+      tests: |
+        TEC.ORM.LoadTests /*/*/*/*[Category=Carga-Pesada]
+        TEC.ORM.Tests /*/*/*/*[Category=Seguranca-Pesada]
+      private-feed: true
+      setup-script: .github/scripts/integration-setup.sh
+      teardown-script: .github/scripts/integration-teardown.sh
+      env: |
+        TEC_CARGA_SOAK_SEGUNDOS=${{ inputs.soak_segundos || 600 }}
+        TEC_CARGA_DURACAO_SEGUNDOS=${{ inputs.duracao_segundos || 120 }}
+        TEC_CARGA_CONCORRENCIA=${{ inputs.concorrencia || 32 }}
+        TEC_CARGA_LINHAS=${{ inputs.linhas || 200000 }}
+      artifact: pesados
+      timeout-minutes: 120
+
+  benchmarks:
+    if: inputs.benchmarks
+    uses: tudoemcodigo/tec-workflows/.github/workflows/dotnet-benchmark.yml@v1
+    permissions:
+      contents: read
+      packages: read
+    with:
+      project: TEC.ORM.Benchmarks
+      private-feed: true
+      filter: ${{ inputs.benchmark_filtro }}

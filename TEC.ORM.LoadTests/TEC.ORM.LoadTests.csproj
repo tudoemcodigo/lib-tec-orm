@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Testes de carga, performance e segurança sob carga: concorrência (EF Core InMemory e SQL Server), alocação por operação,
+    carga mista, volume, soak (longa duração) e isolamento da auditoria sob concorrência. Categorias (TestCategories): Carga-CI
+    (rápidos, no CI a cada PR, no job com SQL Server) e Carga-Pesada ([Explicit], performance.yml e release). Parâmetros em
+    TEC_CARGA_* e relatórios .md em TEC_CARGA_RELATORIOS (Infrastructure/LoadSettings.cs).
+    Os testes com banco usam o mesmo SQL Server de testes da integração (../TEC.ORM.Tests/Shared/TestDatabase.cs, incluído
+    aqui), num schema próprio (loadtest, criado por Infrastructure/loadtest.sql), e se pulam com o motivo sem conexão.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TEC.ORM.LoadTests</RootNamespace>
+    <!-- Mesmo id em todos os projetos de teste dos componentes TEC: um único "dotnet user-secrets set" vale para todos -->
+    <UserSecretsId>tudoemcodigo-tec-testes</UserSecretsId>
+    <!-- Random só gera dados e escolhe operações da carga (nada de segurança): CA5394 não se aplica -->
+    <NoWarn>$(NoWarn);CA5394</NoWarn>
+  </PropertyGroup>
+
+  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="TEC.ORM.Testing" />
+    <Compile Include="../TEC.ORM.Tests/Shared/TestDatabase.cs" Link="Infrastructure/TestDatabase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Gerador do mapeamento: DTO de projeção usado na carga (ListAsync<TDto>) -->
+    <ProjectReference Include="..\TEC.ORM.Mapping.Generator\TEC.ORM.Mapping.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\TEC.ORM.SqlServer\TEC.ORM.SqlServer.csproj" />
+    <TecReference Include="TEC.Vault.InMemory" />
+    <TecReference Include="TEC.Vault.AzureKeyVault" />
+  </ItemGroup>
+
+  <!-- Schema "loadtest" (idempotente), aplicado pela fixture antes do primeiro teste com banco -->
+  <ItemGroup>
+    <None Update="Infrastructure\loadtest.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Configuração local dos testes com banco (seção TecTestes; arquivo ignorado pelo git, copiado para a saída) -->
+  <ItemGroup>
+    <None Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
+  </ItemGroup>
+
+</Project>

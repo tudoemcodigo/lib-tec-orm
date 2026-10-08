@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="TEC.ORM.Benchmarks/TEC.ORM.Benchmarks.csproj" />
+  <Project Path="TEC.ORM.LoadTests/TEC.ORM.LoadTests.csproj" />
+  <Project Path="TEC.ORM.Mapping.Generator/TEC.ORM.Mapping.Generator.csproj" />
+  <Project Path="TEC.ORM.SqlServer/TEC.ORM.SqlServer.csproj" />
+  <Project Path="TEC.ORM.Tests/TEC.ORM.Tests.csproj" />
+  <Project Path="TEC.ORM/TEC.ORM.csproj" />
+</Solution>
