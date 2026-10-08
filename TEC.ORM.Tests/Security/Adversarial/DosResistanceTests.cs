@@ -22,15 +22,14 @@ namespace TEC.ORM.Tests.Security.Adversarial;
 /// materializar dados nem segurar o banco.
 /// </summary>
 /// <remarks>
-/// Os limites de tempo são folgados (máquinas de CI lentas e testes em paralelo): pegam laços sem fim e crescimento
-/// quadrático/exponencial, não pequenas regressões de desempenho (essas ficam com o TEC.ORM.Benchmarks).
+/// Os limites de tempo são folgados (máquinas de CI lentas): pegam laços sem fim e crescimento quadrático/exponencial,
+/// não pequenas regressões de desempenho (essas ficam com o TEC.ORM.Benchmarks). A classe roda com exclusividade
+/// ([NotInParallel] sem chave): mede tempo de parede, e a suíte inteira em paralelo num runner de 2 vCPUs estoura os
+/// limites sem regressão nenhuma.
 /// </remarks>
-[NotInParallel(TimingKey)]
+[NotInParallel]
 public class DosResistanceTests
 {
-    /// <summary>Chave dos testes que medem tempo: não rodam ao mesmo tempo.</summary>
-    public const string TimingKey = "seguranca-tempo";
-
     private static readonly TimeSpan Fast = TimeSpan.FromSeconds(5);
 
     // ---------- Verificação de somente leitura: tempo linear no pior caso ----------
