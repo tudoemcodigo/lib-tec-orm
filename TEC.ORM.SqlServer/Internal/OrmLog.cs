@@ -65,4 +65,12 @@ internal static partial class OrmLog
 
     [LoggerMessage(3104, LogLevel.Warning, "Health check do ORM falhou: {ErrorCode}.")]
     public static partial void HealthCheckFailed(ILogger logger, string errorCode);
+
+    // ---------- Idempotência ----------
+
+    [LoggerMessage(3200, LogLevel.Debug, "ORM: limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}.")]
+    public static partial void IdempotencyPurged(ILogger logger, int count, string context);
+
+    [LoggerMessage(3201, LogLevel.Warning, "ORM: falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo.")]
+    public static partial void IdempotencyPurgeFailed(ILogger logger, Exception exception, string context);
 }

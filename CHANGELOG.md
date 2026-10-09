@@ -2,9 +2,18 @@
 
 Todas as mudanças relevantes do **TEC.ORM** são registradas aqui. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/). Enquanto a versão for `0.x`, mudanças incompatíveis podem ocorrer em versões MINOR. Os dois pacotes (`TEC.ORM`, que leva o gerador, e `TEC.ORM.SqlServer`) saem sempre juntos, com a mesma versão, e devem ser usados na mesma versão (o satélite usa internos do núcleo).
 
-## [0.0.1] - não publicado
+## [0.1.0] - não publicado
 
-Primeira versão. Nada foi publicado ainda: esta entrada descreve o que os pacotes oferecem.
+### ✨ Adicionado
+
+#### 🗃️ TEC.ORM.SqlServer
+
+- **Idempotência no banco:** `EfIdempotencyStore<TContext>` implementa o `IIdempotencyStore` do TEC.Cqrs 0.1.0 (usado pelo `UseTecIdempotency`), com reserva atômica (`INSERT ... WHERE NOT EXISTS` com `UPDLOCK, HOLDLOCK`), tomada de reservas vencidas condicionada ao `LockId` anterior e sem `SaveChanges` (não grava alterações pendentes da aplicação). `modelBuilder.AddTecIdempotency(schema, tableName)` mapeia a tabela; `services.AddTecOrmIdempotency<TContext>()` registra o store (Scoped) e a limpeza periódica em lotes (`OrmIdempotencyOptions`, logs 3200–3201).
+- **Concorrência fora do repositório:** o `AddTecOrm` registra um `IExceptionErrorMapper` que converte `DbUpdateConcurrencyException` e deadlock em `ORM_CONCORRENCIA` e violação de chave em `ORM_CONFLITO` (409), inclusive quando lançados no commit do `IUnitOfWork` (`TransactionBehavior`) ou por um `DbContext` usado direto. Antes, subiam como 500.
+
+## [0.0.1] - 2026-10-08
+
+Primeira versão publicada.
 
 ### ✨ Adicionado
 

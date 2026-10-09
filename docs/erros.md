@@ -76,6 +76,21 @@ public Task<Result<Customer>> Handle(GetCustomerQuery query, CancellationToken c
     customers.GetByIdAsync(query.Id, cancellationToken);           // ORM_NAO_ENCONTRADO → 404
 ```
 
+### Exceções fora do repositório
+
+O repositório já devolve `Result`. Mas o `SaveChangesAsync` do commit do `IUnitOfWork` (chamado pelo `TransactionBehavior`) e
+o código que usa o `DbContext` direto **lançam** exceções. O `AddTecOrm` registra um `IExceptionErrorMapper` do TEC.Cqrs que
+converte, no pipeline e no `UseTecExceptionHandler`:
+
+| Exceção | Código | HTTP |
+|---|---|---|
+| `DbUpdateConcurrencyException` (concorrência otimista, `rowversion`) | `ORM_CONCORRENCIA` | 409 |
+| `SqlException` 1205 (deadlock) | `ORM_CONCORRENCIA` | 409 |
+| `SqlException` 2601, 2627, 547 (chave única, chave estrangeira) | `ORM_CONFLITO` | 409 |
+
+As demais exceções de banco não são mapeadas: continuam como erro interno (500, sem detalhes). Assim, uma aplicação com
+`DbContext` próprio não precisa traduzir `DbUpdateConcurrencyException` à mão.
+
 ### Repetir em concorrência
 
 ```csharp

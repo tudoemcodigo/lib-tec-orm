@@ -23,16 +23,17 @@
 | 4 | [🗑️ Exclusão lógica](exclusao-logica.md) | `ISoftDelete`, `Entity<TKey>`, `OrmDbContext`, convenções, filtro global (EF 8/10) e propagação |
 | 5 | [🕵️ Auditoria](auditoria.md) | `IAuditable`, `AuditableEntity<TKey>`, `OrmIdentity`, `UseTecOrmIdentity` e identidade em cada cenário |
 | 6 | [🔁 Transação](transacao.md) | `OrmUnitOfWork` (`IUnitOfWork` do TEC.Cqrs), commands aninhados e uso manual |
-| 7 | [🔄 Mapeamento entidade ↔ DTO](mapeamento.md) | `[MapFrom]` e demais atributos, conversões, aninhados, coleções, `MaxDepth`, conversores, `ApplyTo`/`ToEntity` |
-| 8 | [🛑 Diagnósticos do gerador](diagnosticos-do-gerador.md) | Todos os `TECORM001`–`TECORM016`: mensagem, exemplo e correção |
-| 9 | [🗄️ SQL Server](sqlserver.md) | `AddTecOrm`, `UseTecOrm`, conexão do cofre e política, health check, vários contextos e extensão |
-| 10 | [⚙️ Opções](opcoes.md) | `OrmOptions`, `IdentifierLogMode`, limites e `appsettings.json` |
-| 11 | [🔁 Resiliência](resiliencia.md) | Novas tentativas só em leituras, falhas transitórias (Azure SQL), pool esgotado e limites |
-| 12 | [📈 Observabilidade](observabilidade.md) | `IOrmOperationRunner`, `OrmOperation`, `OrmDiagnostics`, traces, métricas e eventos de log |
-| 13 | [❌ Erros](erros.md) | `OrmErrors`: códigos, `ErrorType`, HTTP e tradução das exceções do banco |
-| 14 | [🛡️ Segurança](seguranca.md) | Ameaças e controles, o que nunca é registrado, responsabilidades e checklist de produção |
-| 15 | [🧪 Testes](testes.md) | Categorias, como rodar local, SQL Server descartável, variáveis `TEC_TESTES_*`/`TEC_CARGA_*` e suítes |
-| 16 | [💻 Desenvolvimento local](desenvolvimento.md) | Compilar (feed `tec-interno` por padrão, repositórios vizinhos sob demanda), empacotar e regenerar lock files |
+| 7 | [🔂 Idempotência](idempotencia.md) | `EfIdempotencyStore<TContext>`, `AddTecIdempotency`, `AddTecOrmIdempotency` e limpeza: `Idempotency-Key` com reserva atômica no banco |
+| 8 | [🔄 Mapeamento entidade ↔ DTO](mapeamento.md) | `[MapFrom]` e demais atributos, conversões, aninhados, coleções, `MaxDepth`, conversores, `ApplyTo`/`ToEntity` |
+| 9 | [🛑 Diagnósticos do gerador](diagnosticos-do-gerador.md) | Todos os `TECORM001`–`TECORM016`: mensagem, exemplo e correção |
+| 10 | [🗄️ SQL Server](sqlserver.md) | `AddTecOrm`, `UseTecOrm`, conexão do cofre e política, health check, vários contextos e extensão |
+| 11 | [⚙️ Opções](opcoes.md) | `OrmOptions`, `IdentifierLogMode`, limites e `appsettings.json` |
+| 12 | [🔁 Resiliência](resiliencia.md) | Novas tentativas só em leituras, falhas transitórias (Azure SQL), pool esgotado e limites |
+| 13 | [📈 Observabilidade](observabilidade.md) | `IOrmOperationRunner`, `OrmOperation`, `OrmDiagnostics`, traces, métricas e eventos de log |
+| 14 | [❌ Erros](erros.md) | `OrmErrors`: códigos, `ErrorType`, HTTP e tradução das exceções do banco |
+| 15 | [🛡️ Segurança](seguranca.md) | Ameaças e controles, o que nunca é registrado, responsabilidades e checklist de produção |
+| 16 | [🧪 Testes](testes.md) | Categorias, como rodar local, SQL Server descartável, variáveis `TEC_TESTES_*`/`TEC_CARGA_*` e suítes |
+| 17 | [💻 Desenvolvimento local](desenvolvimento.md) | Compilar (feed `tec-interno` por padrão, repositórios vizinhos sob demanda), empacotar e regenerar lock files |
 
 Fora de `docs/`: [⚙️ CI/CD](../.github/workflows/README.md) · [📝 Changelog](../CHANGELOG.md) · READMEs dos pacotes
 ([TEC.ORM](../TEC.ORM/README.md), [TEC.ORM.SqlServer](../TEC.ORM.SqlServer/README.md)).

@@ -136,6 +136,8 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 | 3102 | Error | ORM: falha ao abrir a conexão {Kind} (SQL {SqlErrorNumber}). |
 | 3103 | Warning | ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento). |
 | 3104 | Warning | Health check do ORM falhou: {ErrorCode}. |
+| 3200 | Debug | Limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}. |
+| 3201 | Warning | Falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo. |
 
 `{Kind}` é `escrita` ou `leitura`. Falhas esperadas de leitura saem em 3002; de escrita, em 3003; de infraestrutura
 (`ExternalService`), em 3004. `{Identifier}` segue o `IdentifierLogMode` ([⚙️ Opções](opcoes.md#identifierlogmode)).

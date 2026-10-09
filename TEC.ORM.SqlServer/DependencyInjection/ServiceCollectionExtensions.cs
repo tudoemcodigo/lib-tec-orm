@@ -5,12 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using TEC.Vault.Abstractions;
+using TEC.Cqrs.Abstractions;
 using TEC.Cqrs.Persistence;
 using TEC.ORM.Abstractions;
 using TEC.Core.Security;
 using TEC.ORM.SqlServer.Auditing;
 using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Diagnostics;
+using TEC.ORM.SqlServer.Internal;
 using TEC.ORM.SqlServer.Security;
 using TEC.ORM.SqlServer.SoftDelete;
 using TEC.ORM.SqlServer.UnitOfWork;
@@ -28,6 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="IOrmRepository{TEntity, TKey}"/> para qualquer entidade do contexto (genérico aberto);</description></item>
     /// <item><description><see cref="IOrmQueryExecutor"/> (Dapper, conexão de leitura);</description></item>
     /// <item><description><see cref="IUnitOfWork"/> (TEC.Cqrs), <see cref="IOrmOperationRunner"/> e <see cref="IOrmConnectionSecurity"/>.</description></item>
+    /// <item><description>Um <see cref="IExceptionErrorMapper"/> (TEC.Cqrs) que converte concorrência otimista e deadlock em <c>ORM_CONCORRENCIA</c> e violação de chave em <c>ORM_CONFLITO</c> (409), inclusive no commit do <see cref="IUnitOfWork"/>.</description></item>
     /// </list>
     /// Requer o TEC.Vault registrado (<c>AddTecVault</c>), que fornece o <c>ISecretReader</c>. Os serviços usam <c>TryAdd</c>:
     /// registre antes a sua implementação para substituir.
@@ -101,6 +104,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped(typeof(IOrmRepository<,>), typeof(OrmRepository<,>));
         services.TryAddScoped<IOrmQueryExecutor, OrmQueryExecutor>();
         services.TryAddScoped<IUnitOfWork, OrmUnitOfWork>();
+
+        // Concorrência, deadlock e violação de chave lançados fora do repositório (ex.: no commit do IUnitOfWork) viram 409
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionErrorMapper, OrmExceptionErrorMapper>());
         return services;
     }
 
