@@ -174,7 +174,8 @@ Não há opções próprias. O tempo limite dos comandos dentro da transação �
 |---|---|---|
 | `BeginTransactionAsync` com transação ativa | `InvalidOperationException` | Erro de programação: uma transação por escopo |
 | `CommitAsync` sem transação | `InvalidOperationException` | Chamar `BeginTransactionAsync` antes |
-| Falha de banco no `CommitAsync` | Exceção do EF Core/SqlClient (o `IUnitOfWork` não usa `Result`) | O `TransactionBehavior` do TEC.Cqrs trata; no uso manual, faça rollback |
+| Falha de banco no `CommitAsync` | Exceção do EF Core/SqlClient (o `IUnitOfWork` não usa `Result`) | O `TransactionBehavior` do TEC.Cqrs desfaz; no uso manual, faça rollback |
+| Concorrência otimista, deadlock ou violação de chave no `CommitAsync` | No pipeline do TEC.Cqrs: `Result` de falha `ORM_CONCORRENCIA`/`ORM_CONFLITO` (409), pelo `IExceptionErrorMapper` que o `AddTecOrm` registra | Nada a fazer: o cliente recebe 409 em vez de 500 ([detalhes](erros.md#exceções-fora-do-repositório)) |
 | Escritas dentro da transação | Códigos de [`OrmErrors`](erros.md) | Devolver a falha para o pipeline desfazer |
 
 ---
@@ -204,4 +205,4 @@ idempotente. O ORM nunca repete escritas sozinho.
 </details>
 
 ---
-⬅️ [🕵️ Auditoria](auditoria.md) · [📚 Índice](README.md) · [🔄 Mapeamento](mapeamento.md) ➡️
+⬅️ [🕵️ Auditoria](auditoria.md) · [📚 Índice](README.md) · [🔂 Idempotência](idempotencia.md) ➡️

@@ -242,7 +242,8 @@ sequenceDiagram
 | [📊 Consultas SQL](docs/consultas-sql.md) | Como escrever leituras complexas seguras com `SqlQuery`, limites e join |
 | [🗑️ Exclusão lógica](docs/exclusao-logica.md) | Como o filtro global e a propagação funcionam; database first; restauração |
 | [🕵️ Auditoria](docs/auditoria.md) | Como a autoria é gravada e de onde vem a identidade em cada cenário |
-| [🔁 Transação](docs/transacao.md) | Como agrupar escritas com o `IUnitOfWork` e o pipeline do TEC.Cqrs |
+| [🔁 Transação](docs/transacao.md) | Como agrupar escritas com o `IUnitOfWork` e o pipeline do TEC.Cqrs (concorrência no commit vira 409) |
+| [🔂 Idempotência](docs/idempotencia.md) | Como guardar as respostas de `Idempotency-Key` no banco, com reserva atômica entre instâncias |
 | [🔄 Mapeamento](docs/mapeamento.md) | Como declarar DTOs, aninhados, ciclos, conversores e `ApplyTo`/`ToEntity` |
 | [🛑 Diagnósticos do gerador](docs/diagnosticos-do-gerador.md) | O que significa cada `TECORMxxx` e como corrigir |
 | [🗄️ SQL Server](docs/sqlserver.md) | Registro, conexão do cofre, política, health check e vários contextos |

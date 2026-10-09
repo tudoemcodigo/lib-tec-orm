@@ -392,4 +392,4 @@ Não: a expansão em linha precisa do código do DTO aninhado no mesmo projeto (
 </details>
 
 ---
-⬅️ [🔁 Transação](transacao.md) · [📚 Índice](README.md) · [🛑 Diagnósticos do gerador](diagnosticos-do-gerador.md) ➡️
+⬅️ [🔂 Idempotência](idempotencia.md) · [📚 Índice](README.md) · [🛑 Diagnósticos do gerador](diagnosticos-do-gerador.md) ➡️
