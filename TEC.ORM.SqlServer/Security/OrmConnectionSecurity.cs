@@ -62,6 +62,9 @@ public interface IOrmConnectionSecurity
 /// </remarks>
 public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger) : IOrmConnectionSecurity
 {
+    // Bits por OrmConnectionKind: o aviso de TrustServerCertificate sai uma vez por tipo de conexão, não a cada abertura
+    private int _trustWarnings;
+
     /// <inheritdoc />
     public async Task<Result<SqlConnection>> OpenConnectionAsync(OrmConnectionKind kind, CancellationToken cancellationToken)
     {
@@ -159,7 +162,9 @@ public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions opti
         {
             if (!options.AllowTrustServerCertificate)
                 return Reject(kindName, "TrustServerCertificate=True não permitido");
-            OrmLog.TrustServerCertificateEnabled(logger, kindName);
+            int bit = 1 << (int)kind;
+            if ((Interlocked.Or(ref _trustWarnings, bit) & bit) == 0)
+                OrmLog.TrustServerCertificateEnabled(logger, kindName);
         }
 
         if (!string.IsNullOrWhiteSpace(catalogOverride))
