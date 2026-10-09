@@ -543,7 +543,7 @@
       "tec.orm": {
         "type": "Project",
         "dependencies": {
-          "TEC.Core": "[0.0.1, )"
+          "TEC.Core": "[0.1.0-preview.1, )"
         }
       },
       "tec.orm.sqlserver": {
@@ -553,7 +553,7 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.12, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.12, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
-          "TEC.Cqrs": "[0.0.1, )",
+          "TEC.Cqrs": "[0.1.0-preview.1, )",
           "TEC.ORM": "[0.1.0, )",
           "TEC.Vault": "[0.0.1, )"
         }
@@ -604,18 +604,18 @@
       },
       "TEC.Core": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "P9BWPxvzwUQDEiMR377d+Y4IX57tC0VVzi+JMILfUZpY/22MI/wFf8DbtfVr8yEUAoyA3kBszivLrzsMOsV1BQ==",
+        "requested": "[0.1.0-preview.1, )",
+        "resolved": "0.1.0-preview.1",
+        "contentHash": "6CnmQdgqZJgvwY54bYlpsKOOzmqreaA/je3naZ9VmCohK0F97tTUYarxILuk0+mwz+21g1j7072ydM1Nx59uyA==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.12"
         }
       },
       "TEC.Cqrs": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "JCtHoTGB4Zhe2mq5Waspm/+Im23SVWpzvnOAN/odRKWd3d+xqO1O7FOKsH3a7eUDkdXfZ5MmzPu+HPzuHHbEQA==",
+        "requested": "[0.1.0-preview.1, )",
+        "resolved": "0.1.0-preview.1",
+        "contentHash": "uMKSphGQlA6uH1V3KDpahqGRGAGTrnAPMYApxzuVcZxrxtSehwGZBuv2ouI50lbYoA332Wso99KfeP3Ww/GRxg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"
@@ -1235,7 +1235,7 @@
       "tec.orm": {
         "type": "Project",
         "dependencies": {
-          "TEC.Core": "[0.0.1, )"
+          "TEC.Core": "[0.1.0-preview.1, )"
         }
       },
       "tec.orm.sqlserver": {
@@ -1245,7 +1245,7 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[8.0.31, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.12, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
-          "TEC.Cqrs": "[0.0.1, )",
+          "TEC.Cqrs": "[0.1.0-preview.1, )",
           "TEC.ORM": "[0.1.0, )",
           "TEC.Vault": "[0.0.1, )"
         }
@@ -1294,18 +1294,18 @@
       },
       "TEC.Core": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "P9BWPxvzwUQDEiMR377d+Y4IX57tC0VVzi+JMILfUZpY/22MI/wFf8DbtfVr8yEUAoyA3kBszivLrzsMOsV1BQ==",
+        "requested": "[0.1.0-preview.1, )",
+        "resolved": "0.1.0-preview.1",
+        "contentHash": "6CnmQdgqZJgvwY54bYlpsKOOzmqreaA/je3naZ9VmCohK0F97tTUYarxILuk0+mwz+21g1j7072ydM1Nx59uyA==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.12"
         }
       },
       "TEC.Cqrs": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "JCtHoTGB4Zhe2mq5Waspm/+Im23SVWpzvnOAN/odRKWd3d+xqO1O7FOKsH3a7eUDkdXfZ5MmzPu+HPzuHHbEQA==",
+        "requested": "[0.1.0-preview.1, )",
+        "resolved": "0.1.0-preview.1",
+        "contentHash": "uMKSphGQlA6uH1V3KDpahqGRGAGTrnAPMYApxzuVcZxrxtSehwGZBuv2ouI50lbYoA332Wso99KfeP3Ww/GRxg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"
