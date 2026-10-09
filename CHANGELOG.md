@@ -11,6 +11,10 @@ Todas as mudanças relevantes do **TEC.ORM** são registradas aqui. O formato se
 - **Idempotência no banco:** `EfIdempotencyStore<TContext>` implementa o `IIdempotencyStore` do TEC.Cqrs 0.1.0 (usado pelo `UseTecIdempotency`), com reserva atômica (`INSERT ... WHERE NOT EXISTS` com `UPDLOCK, HOLDLOCK`), tomada de reservas vencidas condicionada ao `LockId` anterior e sem `SaveChanges` (não grava alterações pendentes da aplicação). `modelBuilder.AddTecIdempotency(schema, tableName)` mapeia a tabela; `services.AddTecOrmIdempotency<TContext>()` registra o store (Scoped) e a limpeza periódica em lotes (`OrmIdempotencyOptions`, logs 3200–3201).
 - **Concorrência fora do repositório:** o `AddTecOrm` registra um `IExceptionErrorMapper` que converte `DbUpdateConcurrencyException` e deadlock em `ORM_CONCORRENCIA` e violação de chave em `ORM_CONFLITO` (409), inclusive quando lançados no commit do `IUnitOfWork` (`TransactionBehavior`) ou por um `DbContext` usado direto. Antes, subiam como 500.
 
+### 🐛 Corrigido
+
+- O aviso de `TrustServerCertificate` habilitado sai uma vez por tipo de conexão (leitura/escrita e somente leitura), e não a cada conexão aberta: em desenvolvimento, inundava o log.
+
 ## [0.0.1] - 2026-10-08
 
 Primeira versão publicada.

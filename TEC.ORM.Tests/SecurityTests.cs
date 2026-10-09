@@ -139,6 +139,21 @@ public class SecurityTests
     }
 
     [Test]
+    public async Task TrustServerCertificate_warning_is_logged_once_per_connection_kind()
+    {
+        var (security, logs) = Create(o => o.AllowTrustServerCertificate = true,
+            (TestOrm.SecretName, ValidSecret.Replace("TrustServerCertificate=False", "TrustServerCertificate=True", StringComparison.Ordinal)));
+
+        for (int i = 0; i < 5; i++)
+        {
+            await using var connection = new SqlConnection();
+            await security.ConfigureConnectionAsync(connection, OrmConnectionKind.ReadWrite, CancellationToken.None);
+        }
+
+        await Assert.That(logs.Entries.Count(e => e.Level == LogLevel.Warning && e.Text.Contains("TrustServerCertificate"))).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task Open_failure_does_not_log_server_user_or_password()
     {
         Skip.When(TestDatabase.GlobalizationInvariant, TestDatabase.SqlClientRequiresIcu);
