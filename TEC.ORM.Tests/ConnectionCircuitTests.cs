@@ -113,6 +113,7 @@ public class ConnectionCircuitTests
     [Test]
     public async Task Dapper_connection_fails_fast_with_circuit_open()
     {
+        Skip.When(TestDatabase.GlobalizationInvariant, TestDatabase.SqlClientRequiresIcu);
         // Porta fechada no loopback: recusa rápida, sem depender de servidor
         const string secret = "Server=tcp:127.0.0.1,1;Database=x;Encrypt=True;TrustServerCertificate=False;Connect Timeout=1;ConnectRetryCount=0";
         var options = Sensitive();
