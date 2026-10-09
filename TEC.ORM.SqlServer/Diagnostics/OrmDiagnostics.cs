@@ -38,6 +38,12 @@ public static class OrmDiagnostics
     /// <summary>Histograma da duração das operações (segundos).</summary>
     public const string OperationDurationName = "orm.operation.duration";
 
+    /// <summary>
+    /// Contador de mudanças de estado do circuit breaker da abertura de conexões, com <c>orm.connection</c> (<c>escrita</c> ou
+    /// <c>leitura</c>) e <c>orm.circuit.state</c> (<c>open</c>, <c>half_open</c>, <c>closed</c>).
+    /// </summary>
+    public const string CircuitStateChangesName = "orm.circuit.state_changes";
+
     /// <summary>Provedor das operações de CRUD.</summary>
     public const string EntityFrameworkProvider = "entityframework";
 
@@ -57,6 +63,11 @@ public static class OrmDiagnostics
     internal const string SuccessTag = "orm.success";
     internal const string ErrorTypeTag = "error.type";
     internal const string RetriesTag = "orm.retries";
+    internal const string ConnectionTag = "orm.connection";
+    internal const string CircuitStateTag = "orm.circuit.state";
+    internal const string CircuitOpen = "open";
+    internal const string CircuitHalfOpen = "half_open";
+    internal const string CircuitClosed = "closed";
 
     internal static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
@@ -64,6 +75,16 @@ public static class OrmDiagnostics
 
     internal static readonly Histogram<double> OperationDuration = Meter.CreateHistogram<double>(
         OperationDurationName, unit: "s", description: "Duração das operações do TEC.ORM.");
+
+    internal static readonly Counter<long> CircuitStateChanges = Meter.CreateCounter<long>(
+        CircuitStateChangesName, unit: "{change}", description: "Mudanças de estado do circuit breaker da abertura de conexões.");
+
+    /// <summary>Registra uma mudança de estado do circuito.</summary>
+    internal static void RecordCircuitState(string connection, string state)
+    {
+        if (CircuitStateChanges.Enabled)
+            CircuitStateChanges.Add(1, new KeyValuePair<string, object?>(ConnectionTag, connection), new KeyValuePair<string, object?>(CircuitStateTag, state));
+    }
 
     /// <summary>Registra a duração de uma operação. <paramref name="errorType"/> só em falha.</summary>
     internal static void RecordOperation(string provider, string operation, string target, double seconds, string? errorType)

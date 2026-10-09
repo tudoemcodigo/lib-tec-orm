@@ -1,3 +1,9 @@
+| Métrica | `orm.circuit.state_changes` (contador) | `orm.connection` (`escrita`/`leitura`), `orm.circuit.state` (`open`, `half_open`, `closed`) |
+| `CircuitStateChangesName` | `"orm.circuit.state_changes"` |
+| 3105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
+| 3106 | Information | ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura. |
+| 3107 | Information | ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões. |
+| 3108 | Debug | ORM: abertura da conexão {Kind} recusada com o circuito aberto. |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › 📈 Observabilidade
 
 # 📈 Observabilidade

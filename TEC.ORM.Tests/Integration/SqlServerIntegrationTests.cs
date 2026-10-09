@@ -379,5 +379,44 @@ public class SqlServerIntegrationTests
         await Assert.That(logs.AllText).Contains("SQL 18456");
     }
 
+    [Test]
+    public async Task Circuit_opens_on_ef_path_and_rejects_without_waiting_connect_timeout()
+    {
+        await SqlServerFixture.RequireAsync();
+        var logs = new CapturingLoggerProvider();
+        // Mesmo segredo, mas porta fechada no loopback: SqlClient falha ao abrir (caminho real: repositório -> EF -> interceptor)
+        var unreachable = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(SqlServerFixture.ConnectionString)
+        {
+            DataSource = "tcp:127.0.0.1,1",
+            ConnectTimeout = 2,
+            ConnectRetryCount = 0
+        };
+
+        await using var provider = SqlServerFixture.Build<CodeFirstContext>(logs, o =>
+        {
+            o.TransientRetryCount = 0;
+            o.CircuitBreaker.MinimumThroughput = 2;
+            o.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(5);
+        }, secretOverride: unreachable.ConnectionString);
+
+        for (int i = 0; i < 2; i++)
+        {
+            await using var scope = provider.CreateAsyncScope();
+            var failed = await scope.ServiceProvider.GetRequiredService<IOrmRepository<Customer, Guid>>().CountAsync();
+            await Assert.That(failed.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
+        }
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var rejected = await scope.ServiceProvider.GetRequiredService<IOrmRepository<Customer, Guid>>().CountAsync();
+            await Assert.That(rejected.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
+        }
+
+        await Assert.That(watch.Elapsed).IsLessThan(TimeSpan.FromMilliseconds(500));
+        await Assert.That(logs.AllText).Contains("circuito da conexão escrita aberto");
+        await Assert.That(logs.AllText).DoesNotContain(SqlServerFixture.Password);
+    }
+
     private sealed record CustomerSummary(string Name, int Orders, decimal Total);
 }

@@ -60,8 +60,20 @@ public interface IOrmConnectionSecurity
 /// <para>Para rotação de senha sem reiniciar: o segredo é lido a cada nova conexão do EF Core (uma por <c>DbContext</c>) e do
 /// Dapper; habilite o cache do TEC.Vault (<c>EnableSecretCache</c>) para não consultar o cofre a cada abertura.</para>
 /// </remarks>
-public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger) : IOrmConnectionSecurity
+/// <param name="secrets">Leitor de segredos do TEC.Vault.</param>
+/// <param name="options">Opções do contexto.</param>
+/// <param name="logger">Log (nunca recebe a string de conexão).</param>
+/// <param name="time">Relógio do circuit breaker (<see cref="OrmOptions.CircuitBreaker"/>). Padrão: <see cref="TimeProvider.System"/>.</param>
+public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger,
+    TimeProvider? time = null) : IOrmConnectionSecurity
 {
+    // Um circuito por tipo de conexão (OpenConnectionAsync: leituras complexas do Dapper)
+    private readonly OrmConnectionCircuit?[] _circuits =
+    [
+        OrmConnectionCircuit.Create(options, OrmConnectionKind.ReadWrite, time, logger),
+        OrmConnectionCircuit.Create(options, OrmConnectionKind.ReadOnly, time, logger)
+    ];
+
     // Bits por OrmConnectionKind: o aviso de TrustServerCertificate sai uma vez por tipo de conexão, não a cada abertura
     private int _trustWarnings;
 
@@ -76,8 +88,17 @@ public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions opti
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            if (_circuits[(int)kind] is { } circuit)
+                await circuit.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
+            else
+                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
             return connection;
+        }
+        catch (OrmConnectionException exception)
+        {
+            // Circuito aberto: recusada sem tocar no banco
+            await connection.DisposeAsync().ConfigureAwait(false);
+            return exception.Error;
         }
         catch (SqlException exception)
         {

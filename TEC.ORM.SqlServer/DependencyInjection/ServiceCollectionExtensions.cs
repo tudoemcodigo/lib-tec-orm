@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Vault.Abstractions;
 using TEC.Cqrs.Abstractions;
 using TEC.Cqrs.Persistence;
@@ -86,14 +87,15 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IOrmConnectionSecurity, OrmConnectionSecurity>();
         services.TryAddSingleton<IOrmOperationRunner, OrmOperationRunner>();
-        services.TryAddSingleton<SecretConnectionInterceptor>();
+        services.TryAddSingleton(provider => CreateConnectionInterceptor(provider, provider.GetRequiredService<OrmOptions>(),
+            provider.GetRequiredService<IOrmConnectionSecurity>()));
         services.TryAddSingleton<SoftDeleteInterceptor>();
         services.TryAddSingleton<AuditInterceptor>();
 
         services.AddKeyedSingleton<OrmOptions>(typeof(TContext), options);
         services.AddKeyedSingleton<SecretConnectionInterceptor>(typeof(TContext), (provider, _) => primary
             ? provider.GetRequiredService<SecretConnectionInterceptor>()
-            : new SecretConnectionInterceptor(SecurityFor(provider, options)));
+            : CreateConnectionInterceptor(provider, options, SecurityFor(provider, options)));
 
         services.AddDbContext<TContext>((provider, builder) => ConfigureDbContext(provider, builder, options,
             provider.GetRequiredKeyedService<SecretConnectionInterceptor>(typeof(TContext)), sqlServer,
@@ -157,9 +159,16 @@ public static class ServiceCollectionExtensions
     {
         var shared = provider.GetRequiredService<IOrmConnectionSecurity>();
         return shared is OrmConnectionSecurity
-            ? new OrmConnectionSecurity(provider.GetRequiredService<ISecretReader>(), options, provider.GetRequiredService<ILogger<OrmConnectionSecurity>>())
+            ? new OrmConnectionSecurity(provider.GetRequiredService<ISecretReader>(), options, provider.GetRequiredService<ILogger<OrmConnectionSecurity>>(),
+                provider.GetService<TimeProvider>())
             : shared;
     }
+
+    /// <summary>Interceptor da conexão de um contexto, com o circuito próprio do contexto (<see cref="OrmOptions.CircuitBreaker"/>).</summary>
+    private static SecretConnectionInterceptor CreateConnectionInterceptor(IServiceProvider provider, OrmOptions options,
+        IOrmConnectionSecurity security) =>
+        new(security, OrmConnectionCircuit.Create(options, OrmConnectionKind.ReadWrite, provider.GetService<TimeProvider>(),
+            (ILogger?)provider.GetService<ILogger<SecretConnectionInterceptor>>() ?? NullLogger.Instance));
 
     private static void ConfigureDbContext(IServiceProvider provider, DbContextOptionsBuilder builder, OrmOptions options,
         SecretConnectionInterceptor connection, Action<SqlServerDbContextOptionsBuilder>? sqlServer, Func<ICurrentUser?> currentUser)
