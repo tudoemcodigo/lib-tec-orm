@@ -81,6 +81,10 @@ internal static class OrmExceptionTranslator
             data[ConnectionOpenFailureKey] = true;
     }
 
+    /// <summary>Indica se a exceção foi marcada por <see cref="MarkConnectionOpenFailure"/>.</summary>
+    public static bool IsMarkedConnectionOpenFailure(Exception exception) =>
+        exception.Data is { } data && data.Contains(ConnectionOpenFailureKey);
+
     /// <summary>
     /// Indica se a falha na abertura é o esgotamento do pool do SqlClient: <see cref="InvalidOperationException"/> (sem número
     /// de erro, mensagem traduzida) depois de esperar praticamente todo o <c>Connect Timeout</c>. Outras

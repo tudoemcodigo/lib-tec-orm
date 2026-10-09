@@ -2,7 +2,7 @@
 
 Todas as mudanças relevantes do **TEC.ORM** são registradas aqui. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/). Enquanto a versão for `0.x`, mudanças incompatíveis podem ocorrer em versões MINOR. Os dois pacotes (`TEC.ORM`, que leva o gerador, e `TEC.ORM.SqlServer`) saem sempre juntos, com a mesma versão, e devem ser usados na mesma versão (o satélite usa internos do núcleo).
 
-## [0.1.0] - não publicado
+## [0.1.0] - 2026-10-09
 
 ### ✨ Adicionado
 
@@ -10,6 +10,7 @@ Todas as mudanças relevantes do **TEC.ORM** são registradas aqui. O formato se
 
 - **Idempotência no banco:** `EfIdempotencyStore<TContext>` implementa o `IIdempotencyStore` do TEC.Cqrs 0.1.0 (usado pelo `UseTecIdempotency`), com reserva atômica (`INSERT ... WHERE NOT EXISTS` com `UPDLOCK, HOLDLOCK`), tomada de reservas vencidas condicionada ao `LockId` anterior e sem `SaveChanges` (não grava alterações pendentes da aplicação). `modelBuilder.AddTecIdempotency(schema, tableName)` mapeia a tabela; `services.AddTecOrmIdempotency<TContext>()` registra o store (Scoped) e a limpeza periódica em lotes (`OrmIdempotencyOptions`, logs 3200–3201).
 - **Concorrência fora do repositório:** o `AddTecOrm` registra um `IExceptionErrorMapper` que converte `DbUpdateConcurrencyException` e deadlock em `ORM_CONCORRENCIA` e violação de chave em `ORM_CONFLITO` (409), inclusive quando lançados no commit do `IUnitOfWork` (`TransactionBehavior`) ou por um `DbContext` usado direto. Antes, subiam como 500.
+- **Circuit breaker da abertura de conexões** (`OrmOptions.CircuitBreaker`, `Polly.Core` 8.8.0, ligado por padrão): um circuito por contexto e tipo de conexão; com o banco fora do ar as aberturas falham na hora com `ORM_CONEXAO_INDISPONIVEL`, sem esperar o `Connect Timeout` e sem repetir nada (vale também para escritas). No EF Core o interceptor abre a conexão pelo circuito e suprime a abertura do EF; conexões com o `master` (criação do banco) passam fora dele. Na abertura de teste só uma conexão aberta fecha o circuito. Métrica `orm.circuit.state_changes` e eventos 3105–3108. Nova dependência: `Polly.Core`.
 
 ### 🐛 Corrigido
 

@@ -1,3 +1,5 @@
+| `CircuitBreaker` nulo ou com valor fora do limite (ligado) | `InvalidConfigurationException("TecOrm:CircuitBreaker:<Opção>")` |
+| `CircuitBreaker` | `OrmCircuitBreakerOptions` | ligado (50%, 10 aberturas, 30 s, 30 s) | ver [🔁 Resiliência](resiliencia.md#circuit-breaker-da-conexão) | Circuit breaker da abertura de conexões: `Enabled`, `FailureRatio` (> 0 e ≤ 1), `MinimumThroughput` (2 a 10.000), `SamplingDuration` e `BreakDuration` (0,5 s a 1 h) |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › ⚙️ Opções
 
 # ⚙️ Opções
@@ -52,6 +54,7 @@ requisição. Cada contexto registrado tem as próprias opções ([🗄️ SQL S
     "MaxQueryRows": 10000,
     "TransientRetryCount": 2,
     "TransientRetryDelay": "00:00:00.200",
+    "CircuitBreaker": { "Enabled": true, "FailureRatio": 0.5, "MinimumThroughput": 10, "SamplingDuration": "00:00:30", "BreakDuration": "00:00:30" },
     "EnforceReadOnlyQueries": true,
     "IdentifierLogMode": "Hashed"
   }

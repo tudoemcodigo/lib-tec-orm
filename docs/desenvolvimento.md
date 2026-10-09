@@ -165,7 +165,7 @@ dotnet restore TEC.ORM.slnx --force-evaluate
 | `TecUseLocalProjects` | `false` (sempre `false` com `CI=true`) | `true` liga a troca de `TecReference` por `ProjectReference` quando o vizinho existe |
 | `TecComponentsRoot` | Pasta acima do repositório | Onde procurar os vizinhos |
 | `PackageVersion` dos TEC.* (`Directory.Packages.props`) | `0.0.1` | Versão publicada de cada TEC.* consumido no modo pacote (o Dependabot atualiza) |
-| `Version` (`Directory.Build.props`) | `0.0.1` | Versão única dos dois pacotes; base das prévias do CI (`<Version>-preview.N` a cada push na `main`). Suba depois de publicar `X.Y.Z` |
+| `Version` (`Directory.Build.props`) | `0.1.0` | Versão única dos dois pacotes; base das prévias do CI (`<Version>-preview.N` a cada push na `main`). Suba depois de publicar `X.Y.Z` |
 | `EmitCompilerGeneratedFiles` | `false` | Grava o código do gerador em `obj/` |
 
 ---

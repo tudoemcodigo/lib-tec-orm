@@ -265,7 +265,8 @@ public class ConfigurationTests
         var interceptor = context.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()!.Interceptors!
             .OfType<SecretConnectionInterceptor>().Single();
         await using var connection = new SqlConnection();
-        await interceptor.ConnectionOpeningAsync(connection, null!, default);
+        // Resultado já suprimido: o interceptor só aplica a string de conexão (com o circuit breaker ele abriria a conexão)
+        await interceptor.ConnectionOpeningAsync(connection, null!, InterceptionResult.Suppress());
         return new SqlConnectionStringBuilder(connection.ConnectionString);
     }
 }

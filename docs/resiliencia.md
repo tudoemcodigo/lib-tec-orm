@@ -1,3 +1,8 @@
+| `CircuitBreaker.Enabled` | `true` | — | Liga o circuit breaker da abertura de conexões |
+| `CircuitBreaker.FailureRatio` | `0.5` | > 0 e ≤ 1 | Proporção de falhas que abre o circuito |
+| `CircuitBreaker.MinimumThroughput` | `10` | 2 a 10.000 | Mínimo de aberturas na janela |
+| `CircuitBreaker.SamplingDuration` | `30 s` | 0,5 s a 1 h | Janela de amostragem |
+| `CircuitBreaker.BreakDuration` | `30 s` | 0,5 s a 1 h | Tempo aberto antes da abertura de teste |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › 🔁 Resiliência
 
 # 🔁 Resiliência
@@ -12,6 +17,7 @@
   - [Novas tentativas em falha transitória](#novas-tentativas-em-falha-transitória)
   - [O que é falha transitória](#o-que-é-falha-transitória)
   - [Pool de conexões esgotado](#pool-de-conexões-esgotado)
+  - [Circuit breaker da conexão](#circuit-breaker-da-conexão)
   - [Limites de leitura](#limites-de-leitura)
   - [Por que não EnableRetryOnFailure](#por-que-não-enableretryonfailure)
 - [⚙️ Opções](#️-opções)
@@ -100,6 +106,39 @@ erro de programação (`ORM_FALHA`): o critério não mascara outras causas.
 > [!TIP]
 > Pool esgotado costuma ser consulta lenta segurando conexões. Ajuste o `Max Pool Size` **no segredo** da conexão,
 > otimize a consulta e reduza `CommandTimeoutSeconds` se fizer sentido.
+
+### Circuit breaker da conexão
+
+Com o banco fora do ar, cada requisição esperaria o `Connect Timeout` (e as novas tentativas) antes de falhar. O circuit
+breaker (`Polly.Core`, ligado por padrão em `OrmOptions.CircuitBreaker`) envolve **só a abertura da conexão**:
+
+- **Conta como falha:** `SqlException` ao abrir (rede, failover, banco indisponível, login recusado) e pool esgotado.
+- **Abre** quando, dentro de `SamplingDuration`, houve pelo menos `MinimumThroughput` aberturas e a proporção de falhas chegou
+  a `FailureRatio`. Aberto, toda abertura falha na hora com `ORM_CONEXAO_INDISPONIVEL`, sem tocar no banco (log 3108 em Debug).
+- Depois de `BreakDuration`, **uma** abertura de teste vai ao banco: sucesso fecha o circuito (log 3107), falha abre de novo.
+- **Um circuito por contexto e tipo de conexão:** a do EF Core (escrita) e as do `IOrmConnectionSecurity.OpenConnectionAsync`
+  (Dapper, leitura e escrita). Contextos diferentes não se afetam.
+- **Abertura de teste:** só uma conexão aberta fecha o circuito; cancelamento ou qualquer outra exceção na abertura de
+  teste contam como falha e o circuito volta a abrir.
+- **Criação do banco:** as conexões com o `master` que o EF Core deriva para criar ou apagar o banco (`EnsureCreated`,
+  `Migrate`) passam fora do circuito.
+- **Seguro para escritas:** abrir conexão não executa comando, e o circuit breaker nunca repete nada. As novas tentativas
+  continuam sendo só as de `TransientRetryCount`; com o circuito aberto elas param na hora (a falha não é transitória).
+- **Health check:** o `tec-orm` abre a conexão por `OpenConnectionAsync` (escrita); com esse circuito aberto ele responde
+  `Unhealthy` na hora, sem esperar o tempo limite.
+
+```json
+{
+  "TecOrm": {
+    "CircuitBreaker": { "FailureRatio": 0.5, "MinimumThroughput": 10, "SamplingDuration": "00:00:30", "BreakDuration": "00:00:30" }
+  }
+}
+```
+
+> [!NOTE]
+> Com o circuit breaker ligado, o `SecretConnectionInterceptor` abre a conexão do EF Core pelo circuito e suprime a abertura
+> do próprio EF (`InterceptionResult.Suppress`). A falha continua passando pelo `ConnectionFailed` do EF, então a tradução de
+> erros e a marca de pool esgotado não mudam. Um `IOrmConnectionSecurity` próprio da aplicação não altera isso.
 
 ### Limites de leitura
 

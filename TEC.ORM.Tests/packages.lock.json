@@ -715,7 +715,7 @@
       "tec.orm": {
         "type": "Project",
         "dependencies": {
-          "TEC.Core": "[0.1.0-preview.1, )"
+          "TEC.Core": "[0.1.0, )"
         }
       },
       "tec.orm.mapping.generator": {
@@ -728,7 +728,8 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.12, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.12, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
-          "TEC.Cqrs": "[0.1.0-preview.1, )",
+          "Polly.Core": "[8.8.0, )",
+          "TEC.Cqrs": "[0.1.0, )",
           "TEC.ORM": "[0.1.0, )",
           "TEC.Vault": "[0.0.1, )"
         }
@@ -793,20 +794,26 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12"
         }
       },
+      "Polly.Core": {
+        "type": "CentralTransitive",
+        "requested": "[8.8.0, )",
+        "resolved": "8.8.0",
+        "contentHash": "TewV9uNFsoRFggoFbTAGFwsMYPuckA+wTIpQPyhLL9BANRPQRENz2S4bwATrB3HBOakN5oKLFIllPiDnVecmJg=="
+      },
       "TEC.Core": {
         "type": "CentralTransitive",
-        "requested": "[0.1.0-preview.1, )",
-        "resolved": "0.1.0-preview.1",
-        "contentHash": "6CnmQdgqZJgvwY54bYlpsKOOzmqreaA/je3naZ9VmCohK0F97tTUYarxILuk0+mwz+21g1j7072ydM1Nx59uyA==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "Sf2/in2LnBAyfbvVAZXN5K7I+PB9z0TgTOcMXb7+4XqUKVMw1ybwhveHtvK/pQJn9rBAlBhWm9CyI20JF2LqOg==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.12"
         }
       },
       "TEC.Cqrs": {
         "type": "CentralTransitive",
-        "requested": "[0.1.0-preview.1, )",
-        "resolved": "0.1.0-preview.1",
-        "contentHash": "uMKSphGQlA6uH1V3KDpahqGRGAGTrnAPMYApxzuVcZxrxtSehwGZBuv2ouI50lbYoA332Wso99KfeP3Ww/GRxg==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "blZ6zGZLcMQKrEQjihh6Ds+bzPKgeIfFmZgF+CHOyjERo9ffhHU8txeLxfuEW5sL1k/q8rXCgvWmvRwPAje7rg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"
@@ -1583,7 +1590,7 @@
       "tec.orm": {
         "type": "Project",
         "dependencies": {
-          "TEC.Core": "[0.1.0-preview.1, )"
+          "TEC.Core": "[0.1.0, )"
         }
       },
       "tec.orm.mapping.generator": {
@@ -1596,7 +1603,8 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[8.0.31, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.12, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
-          "TEC.Cqrs": "[0.1.0-preview.1, )",
+          "Polly.Core": "[8.8.0, )",
+          "TEC.Cqrs": "[0.1.0, )",
           "TEC.ORM": "[0.1.0, )",
           "TEC.Vault": "[0.0.1, )"
         }
@@ -1649,20 +1657,26 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12"
         }
       },
+      "Polly.Core": {
+        "type": "CentralTransitive",
+        "requested": "[8.8.0, )",
+        "resolved": "8.8.0",
+        "contentHash": "TewV9uNFsoRFggoFbTAGFwsMYPuckA+wTIpQPyhLL9BANRPQRENz2S4bwATrB3HBOakN5oKLFIllPiDnVecmJg=="
+      },
       "TEC.Core": {
         "type": "CentralTransitive",
-        "requested": "[0.1.0-preview.1, )",
-        "resolved": "0.1.0-preview.1",
-        "contentHash": "6CnmQdgqZJgvwY54bYlpsKOOzmqreaA/je3naZ9VmCohK0F97tTUYarxILuk0+mwz+21g1j7072ydM1Nx59uyA==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "Sf2/in2LnBAyfbvVAZXN5K7I+PB9z0TgTOcMXb7+4XqUKVMw1ybwhveHtvK/pQJn9rBAlBhWm9CyI20JF2LqOg==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.12"
         }
       },
       "TEC.Cqrs": {
         "type": "CentralTransitive",
-        "requested": "[0.1.0-preview.1, )",
-        "resolved": "0.1.0-preview.1",
-        "contentHash": "uMKSphGQlA6uH1V3KDpahqGRGAGTrnAPMYApxzuVcZxrxtSehwGZBuv2ouI50lbYoA332Wso99KfeP3Ww/GRxg==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "blZ6zGZLcMQKrEQjihh6Ds+bzPKgeIfFmZgF+CHOyjERo9ffhHU8txeLxfuEW5sL1k/q8rXCgvWmvRwPAje7rg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"

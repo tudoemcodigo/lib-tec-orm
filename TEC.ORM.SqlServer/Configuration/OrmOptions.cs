@@ -79,6 +79,13 @@ public sealed class OrmOptions
     /// </summary>
     public TimeSpan TransientRetryDelay { get; set; } = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>
+    /// Circuit breaker da abertura de conexões (ligado por padrão): com o banco fora do ar, as aberturas seguintes falham na
+    /// hora com <c>ORM_CONEXAO_INDISPONIVEL</c>, sem esperar o <c>Connect Timeout</c> a cada requisição. Um circuito por contexto
+    /// e tipo de conexão. Abrir conexão não executa comando, então vale também para escritas (nada é repetido).
+    /// </summary>
+    public OrmCircuitBreakerOptions CircuitBreaker { get; set; } = new();
+
     /// <summary>Recusa, nas leituras complexas, SQL que não seja somente leitura (defesa em profundidade). Padrão <c>true</c>.</summary>
     public bool EnforceReadOnlyQueries { get; set; } = true;
 
@@ -111,5 +118,49 @@ public sealed class OrmOptions
             throw new InvalidConfigurationException("TecOrm:" + nameof(TransientRetryDelay));
         if (!Enum.IsDefined(IdentifierLogMode))
             throw new InvalidConfigurationException("TecOrm:" + nameof(IdentifierLogMode));
+        if (CircuitBreaker is null)
+            throw new InvalidConfigurationException("TecOrm:" + nameof(CircuitBreaker));
+        CircuitBreaker.Validate();
+    }
+}
+
+/// <summary>
+/// Circuit breaker da abertura de conexões (<see cref="OrmOptions.CircuitBreaker"/>).
+/// </summary>
+/// <remarks>
+/// Contam como falha: erro do SQL Server ao abrir (rede, failover, login, banco indisponível) e esgotamento do pool do SqlClient.
+/// O circuito abre quando, dentro de <see cref="SamplingDuration"/>, houve pelo menos <see cref="MinimumThroughput"/> aberturas
+/// e a proporção de falhas chegou a <see cref="FailureRatio"/>. Fica aberto por <see cref="BreakDuration"/>; depois deixa passar
+/// uma abertura de teste: sucesso fecha o circuito, falha abre de novo.
+/// </remarks>
+public sealed class OrmCircuitBreakerOptions
+{
+    /// <summary>Liga o circuit breaker. Padrão: <c>true</c>.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Proporção de falhas que abre o circuito (maior que 0, até 1). Padrão: 0,5.</summary>
+    public double FailureRatio { get; set; } = 0.5;
+
+    /// <summary>Mínimo de aberturas na janela para avaliar a proporção (2 a 10.000). Padrão: 10.</summary>
+    public int MinimumThroughput { get; set; } = 10;
+
+    /// <summary>Janela de amostragem (0,5 segundo a 1 hora). Padrão: 30 segundos.</summary>
+    public TimeSpan SamplingDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Tempo com o circuito aberto antes da abertura de teste (0,5 segundo a 1 hora). Padrão: 30 segundos.</summary>
+    public TimeSpan BreakDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    internal void Validate()
+    {
+        if (!Enabled)
+            return;
+        if (double.IsNaN(FailureRatio) || FailureRatio is <= 0 or > 1)
+            throw new InvalidConfigurationException("TecOrm:CircuitBreaker:" + nameof(FailureRatio));
+        if (MinimumThroughput is < 2 or > 10_000)
+            throw new InvalidConfigurationException("TecOrm:CircuitBreaker:" + nameof(MinimumThroughput));
+        if (SamplingDuration < TimeSpan.FromMilliseconds(500) || SamplingDuration > TimeSpan.FromHours(1))
+            throw new InvalidConfigurationException("TecOrm:CircuitBreaker:" + nameof(SamplingDuration));
+        if (BreakDuration < TimeSpan.FromMilliseconds(500) || BreakDuration > TimeSpan.FromHours(1))
+            throw new InvalidConfigurationException("TecOrm:CircuitBreaker:" + nameof(BreakDuration));
     }
 }

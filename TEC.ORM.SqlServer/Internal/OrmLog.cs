@@ -66,6 +66,19 @@ internal static partial class OrmLog
     [LoggerMessage(3104, LogLevel.Warning, "Health check do ORM falhou: {ErrorCode}.")]
     public static partial void HealthCheckFailed(ILogger logger, string errorCode);
 
+    [LoggerMessage(3105, LogLevel.Warning,
+        "ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s.")]
+    public static partial void CircuitOpened(ILogger logger, string kind, double breakSeconds);
+
+    [LoggerMessage(3106, LogLevel.Information, "ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura.")]
+    public static partial void CircuitHalfOpened(ILogger logger, string kind);
+
+    [LoggerMessage(3107, LogLevel.Information, "ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões.")]
+    public static partial void CircuitClosed(ILogger logger, string kind);
+
+    [LoggerMessage(3108, LogLevel.Debug, "ORM: abertura da conexão {Kind} recusada com o circuito aberto.")]
+    public static partial void CircuitRejected(ILogger logger, string kind);
+
     // ---------- Idempotência ----------
 
     [LoggerMessage(3200, LogLevel.Debug, "ORM: limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}.")]

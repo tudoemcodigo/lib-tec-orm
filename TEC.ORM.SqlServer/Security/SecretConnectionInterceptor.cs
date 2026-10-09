@@ -8,8 +8,16 @@ namespace TEC.ORM.SqlServer.Security;
 /// Entrega ao EF Core a string de conexão do TEC.Vault no momento de abrir a conexão. O <c>DbContext</c> é configurado com
 /// <c>UseSqlServer()</c> sem string de conexão: ela nunca passa pelas opções, pela configuração nem pelos logs do EF.
 /// </summary>
-internal sealed class SecretConnectionInterceptor(IOrmConnectionSecurity security) : DbConnectionInterceptor
+/// <remarks>
+/// Com o circuit breaker ligado (<see cref="Configuration.OrmOptions.CircuitBreaker"/>) o próprio interceptor abre a conexão pelo
+/// circuito e suprime a abertura do EF Core; falhas continuam passando pelo <c>ConnectionFailed</c> do EF (tradução e marca de
+/// esgotamento do pool). Com o circuito aberto a abertura lança <see cref="OrmConnectionException"/> na hora.
+/// </remarks>
+internal sealed class SecretConnectionInterceptor(IOrmConnectionSecurity security, OrmConnectionCircuit? circuit = null) : DbConnectionInterceptor
 {
+    /// <summary>Circuito da conexão de leitura e escrita deste contexto (<c>null</c> = desligado).</summary>
+    internal OrmConnectionCircuit? Circuit => circuit;
+
     public override async ValueTask<InterceptionResult> ConnectionOpeningAsync(DbConnection connection, ConnectionEventData eventData,
         InterceptionResult result, CancellationToken cancellationToken = default)
     {
@@ -17,8 +25,19 @@ internal sealed class SecretConnectionInterceptor(IOrmConnectionSecurity securit
             .ConfigureAwait(false);
         if (configured.IsFailure)
             throw new OrmConnectionException(configured.Error!);
-        return result;
+        if (circuit is null || result.IsSuppressed || IsServerConnection(connection))
+            return result;
+
+        await circuit.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
+        return InterceptionResult.Suppress();
     }
+
+    /// <summary>
+    /// Conexão com o <c>master</c> derivada pelo EF Core para criar ou apagar o banco (<c>EnsureCreated</c>, <c>Migrate</c>): passa
+    /// fora do circuito, para operações de criação não abrirem nem serem barradas pelo circuito do banco da aplicação.
+    /// </summary>
+    private static bool IsServerConnection(DbConnection connection) =>
+        string.Equals(connection.Database, "master", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Falha ao abrir (ex.: pool do SqlClient esgotado): marca a exceção para ser traduzida em <c>ORM_CONEXAO_INDISPONIVEL</c>.
@@ -55,6 +74,10 @@ internal sealed class SecretConnectionInterceptor(IOrmConnectionSecurity securit
             .ConfigureAwait(false).GetAwaiter().GetResult();
         if (configured.IsFailure)
             throw new OrmConnectionException(configured.Error!);
-        return result;
+        if (circuit is null || result.IsSuppressed || IsServerConnection(connection))
+            return result;
+
+        circuit.Open(connection);
+        return InterceptionResult.Suppress();
     }
 }
