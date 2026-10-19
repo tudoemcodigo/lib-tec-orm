@@ -26,7 +26,12 @@ public class VolumeTests
         await LoadDatabase.RequireAsync();
         int rows = LoadSettings.Rows;
         const int categories = 10, maxFind = 1_000;
-        await using var provider = LoadDatabase.Build(configure: o => o.MaxFindResults = maxFind);
+        // Paginação profunda é o que este teste mede: sem o teto de OFFSET (MaxPageOffset) do padrão
+        await using var provider = LoadDatabase.Build(configure: o =>
+        {
+            o.MaxFindResults = maxFind;
+            o.MaxPageOffset = 100_000_000;
+        });
         var batch = LoadDatabase.NewBatch();
         var report = new StringBuilder();
         long baseline = MemoryProbe.RetainedBytes();

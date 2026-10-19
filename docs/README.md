@@ -34,6 +34,7 @@
 | 15 | [🛡️ Segurança](seguranca.md) | Ameaças e controles, o que nunca é registrado, responsabilidades e checklist de produção |
 | 16 | [🧪 Testes](testes.md) | Categorias, como rodar local, SQL Server descartável, variáveis `TEC_TESTES_*`/`TEC_CARGA_*` e suítes |
 | 17 | [💻 Desenvolvimento local](desenvolvimento.md) | Compilar (feed `tec-interno` por padrão, repositórios vizinhos sob demanda), empacotar e regenerar lock files |
+| 18 | [🔍 Revisão técnica](revisao-tecnica.md) | Revisão de segurança e qualidade de 2026-10-19: achados por severidade, evidências, correções sugeridas e melhorias |
 
 Fora de `docs/`: [⚙️ CI/CD](../.github/workflows/README.md) · [📝 Changelog](../CHANGELOG.md) · READMEs dos pacotes
 ([TEC.ORM](../TEC.ORM/README.md), [TEC.ORM.SqlServer](../TEC.ORM.SqlServer/README.md)).
@@ -59,6 +60,7 @@ flowchart TD
     O --> OB["📈 observabilidade.md · ❌ erros.md"]
     OB --> SEC["🛡️ seguranca.md<br/>checklist de produção"]
     SEC -.-> TS["🧪 testes.md · 💻 desenvolvimento.md"]
+    SEC -.-> RV["🔍 revisao-tecnica.md<br/>achados e melhorias"]
 ```
 
 ---

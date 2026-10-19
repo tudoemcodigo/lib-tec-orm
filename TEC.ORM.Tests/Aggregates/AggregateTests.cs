@@ -325,11 +325,32 @@ public class AggregateTests
         await CreateSaleAsync(store);
         await using var context = store.Create();
 
-        var rejected = await Sales(context).ListAsync(new PageRequest(1, 10, sortBy));
-        var accepted = await Sales(context).ListAsync(new PageRequest(1, 10, "PasswordHash"));   // sem [Sortable]: como antes
+        // Mesmo com AllowUnmarkedSortBy (qualquer propriedade escalar sem [Sortable]), estas continuam recusadas
+        var sales = TestOrm.Orm<Sale, int>(context, TestOrm.Options(o => o.AllowUnmarkedSortBy = true));
+        var rejected = await sales.ListAsync(new PageRequest(1, 10, sortBy));
+        var accepted = await sales.ListAsync(new PageRequest(1, 10, "PasswordHash"));
 
         await Assert.That(rejected.Error!.Code).IsEqualTo(OrmErrors.InvalidInputCode);
         await Assert.That(rejected.Error.Field).IsEqualTo("sortBy");
         await Assert.That(accepted.IsSuccess).IsTrue();
+    }
+
+    [Test]
+    [Arguments("PasswordHash", false)]
+    [Arguments("Name", false)]
+    [Arguments("Id", true)]
+    [Arguments("id", true)]
+    public async Task Without_Sortable_only_the_key_is_accepted_by_default(string sortBy, bool accepted)
+    {
+        // Revisão 2026-10-19 (SEG-03): sem [Sortable], falha fechada (oráculo de ordenação sobre colunas sensíveis)
+        var store = new InMemoryStore();
+        await CreateSaleAsync(store);
+        await using var context = store.Create();
+
+        var result = await Sales(context).ListAsync(new PageRequest(1, 10, sortBy));
+
+        await Assert.That(result.IsSuccess).IsEqualTo(accepted);
+        if (!accepted)
+            await Assert.That(result.Error!.Field).IsEqualTo("sortBy");
     }
 }

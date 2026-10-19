@@ -17,8 +17,11 @@ namespace TEC.ORM.SqlServer;
 /// conexão somente leitura do <see cref="IOrmConnectionSecurity"/>, sempre com parâmetros.
 /// </summary>
 /// <remarks>
-/// <para>Cada chamada abre e fecha a própria conexão (o pool do SqlClient reaproveita). Não participa da transação do EF Core:
-/// para ler o que acabou de ser gravado na mesma transação, use o <see cref="IOrmRepository{TEntity, TKey}"/>.</para>
+/// <para>Cada chamada abre e fecha a própria conexão (o pool do SqlClient reaproveita). Não participa da transação do EF Core
+/// nem de um <c>TransactionScope</c> ambiente (a conexão de leitura tem <c>Enlist=false</c>): para ler o que acabou de ser
+/// gravado na mesma transação, use o <see cref="IOrmRepository{TEntity, TKey}"/>.</para>
+/// <para>A consulta deve produzir um único resultado: um segundo (<c>SELECT ... SELECT ...</c> sem <c>;</c>) cancela o comando
+/// e falha com <c>ORM_CONSULTA_NAO_PERMITIDA</c>, sem trafegar as linhas dele.</para>
 /// <para>As linhas são lidas uma a uma do banco (sem carregar o resultado inteiro antes): passando de
 /// <see cref="OrmOptions.MaxQueryRows"/> (ou da segunda linha, em <see cref="QuerySingleOrDefaultAsync{T}"/>), o comando é
 /// cancelado no servidor e o resto nunca trafega. Toda consulta tem o tempo limite de <see cref="OrmOptions.CommandTimeoutSeconds"/>
@@ -129,6 +132,10 @@ public class OrmQueryExecutor(IOrmConnectionSecurity security, IOrmOperationRunn
                     try
                     {
                         var (result, done) = await read(reader, token).ConfigureAwait(false);
+                        // Outro resultado depois do primeiro (vários SELECT sem ';'): seria lido e descartado inteiro ao fechar
+                        // o leitor, fora do MaxQueryRows. Recusado, com o comando cancelado no servidor.
+                        if (done && await reader.NextResultAsync(token).ConfigureAwait(false))
+                            return OrmErrors.QueryNotAllowed("a consulta produziu mais de um resultado.");
                         complete = done;
                         return result;
                     }

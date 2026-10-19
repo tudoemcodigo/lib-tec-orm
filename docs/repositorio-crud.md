@@ -173,7 +173,8 @@ Usos típicos: expurgo de excluídos antigos, eliminação de dados pedida pelo 
 | Quando | Alerta |
 |---|---|
 | Compilação | Toda chamada gera o aviso **`TECORM014`** (também para *overrides* e implementações sem o atributo). Ver [🛑 Diagnósticos](diagnosticos-do-gerador.md#tecorm014--exclusão-física-o-registro-será-excluído-de-fato) |
-| Execução | No sucesso, log de auditoria **3007** em `Warning` (em vez do 3001 em `Information`) |
+| Execução | No sucesso, log de auditoria **3007** em `Warning` (em vez do 3001 em `Information`), com o autor (`ICurrentUser`) e as linhas removidas |
+| Identidade | Entidade `IAuditable` sem identidade autenticada: `ORM_AUDITORIA_SEM_IDENTIDADE`, nada é excluído |
 
 ```csharp
 using TEC.Core.Common.Results;
@@ -267,7 +268,7 @@ builder.Services.AddScoped<IOrmRepository<Customer, Guid>, CustomerRepository>()
 | `MaxPageSize` | `100` | Teto do `PageSize` da listagem |
 | `CommandTimeoutSeconds` | `30` | Tempo limite de cada comando |
 | `TransientRetryCount` / `TransientRetryDelay` | `2` / `200 ms` | Novas tentativas das leituras fora de transação |
-| `IdentifierLogMode` | `Plain` | Como o `Id` aparece no log de auditoria |
+| `IdentifierLogMode` | `Auto` | Como o `Id` aparece no log de auditoria (chave texto com HMAC) |
 
 Referência completa: [⚙️ Opções](opcoes.md).
 

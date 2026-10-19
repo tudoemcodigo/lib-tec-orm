@@ -152,6 +152,15 @@ flowchart TD
 > `OrmRepository.DeleteAsync` desliga essa cascata durante a operação.
 
 > [!WARNING]
+> **Custo da propagação:** uma consulta por navegação em cascata de cada principal (N+1) e um `UPDATE` por linha, no mesmo
+> salvamento. O total de dependentes é limitado por `OrmOptions.MaxSoftDeletePropagation` (padrão 10.000): cada carga lê no
+> máximo o que ainda cabe no teto e, passando dele, a exclusão falha com `ORM_LIMITE_EXCEDIDO` sem gravar nada. Agregados
+> maiores: exclua os dependentes em lotes antes do principal.
+>
+> `IsDeleted` é token de concorrência (convenção, sem mudar o schema): uma exclusão concorrente entre a leitura e o `UPDATE`
+> de uma atualização resulta em `ORM_CONCORRENCIA`, sem alterar o registro excluído.
+
+> [!WARNING]
 > Dependente `ISoftDelete` em cascata **sem navegação no principal** só é propagado se já estiver rastreado. Declare a
 > navegação (`HasMany(s => s.Installments)`) para a propagação completa.
 
@@ -183,7 +192,7 @@ Não há opções em `OrmOptions` para a exclusão lógica: ela é sempre ligada
 
 | Parâmetro | Padrão | Descrição |
 |---|---|---|
-| `HasSoftDelete(index)` | `true` | Cria o índice filtrado `[IsDeleted] = 0` |
+| `HasSoftDelete(index)` | `true` | Cria o índice filtrado `[IsDeleted] = 0`, com o nome real da coluna (`HasColumnName`) aplicado pelas convenções. Esse índice sobre o `bit` quase nunca é usado: prefira `index: false` e índices das **colunas de busca** filtrados por `[IsDeleted] = 0` (ex.: `HasIndex(c => c.Email).IsUnique().HasFilter("[IsDeleted] = 0")`). O padrão segue `true` para não gerar migration de remoção |
 
 ---
 

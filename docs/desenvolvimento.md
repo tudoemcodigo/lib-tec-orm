@@ -213,4 +213,4 @@ Não. Só o `packages.lock.json` (modo pacote).
 </details>
 
 ---
-⬅️ [🧪 Testes](testes.md) · [📚 Índice](README.md)
+⬅️ [🧪 Testes](testes.md) · [📚 Índice](README.md) · [🔍 Revisão técnica](revisao-tecnica.md) ➡️

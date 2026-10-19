@@ -46,6 +46,8 @@ public class SecurityTests
         await Assert.That(applied.ApplicationName).IsEqualTo("Sales");
         await Assert.That(applied.CommandTimeout).IsEqualTo(OrmOptions.DefaultCommandTimeoutSeconds);
         await Assert.That(applied.ApplicationIntent).IsEqualTo(ApplicationIntent.ReadWrite);
+        // Escrita: participa do TransactionScope ambiente (padrão do SqlClient), como o EF Core espera
+        await Assert.That(applied.Enlist).IsTrue();
         await Assert.That(logs.AllText).DoesNotContain(Password);
     }
 
@@ -62,6 +64,8 @@ public class SecurityTests
         var applied = new SqlConnectionStringBuilder(connection.ConnectionString);
         await Assert.That(applied.UserID).IsEqualTo("leitor");
         await Assert.That(applied.ApplicationIntent).IsEqualTo(ApplicationIntent.ReadOnly);
+        // Revisão 2026-10-19 (BUG-01): fora do TransactionScope ambiente, sem promoção a transação distribuída
+        await Assert.That(applied.Enlist).IsFalse();
     }
 
     [Test]

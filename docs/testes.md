@@ -96,7 +96,7 @@ Use um container **seu**, numa porta própria, e apague-o no fim (exemplo com a 
 ```bash
 export MSSQL_SA_PASSWORD="Tec1!$(openssl rand -hex 16)"
 docker run -d --name tec-orm-mssql -p 127.0.0.1:11433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD \
-  mcr.microsoft.com/mssql/server:2022-latest
+  mcr.microsoft.com/mssql/server@sha256:cf8f0ab2ebe61feec2eed2629061a07d247f791c2a8ddda74a4ac9f06a291718   # 2022-CU27-GDR1-ubuntu-22.04, o mesmo do CI
 
 # Depois que o log mostrar "SQL Server is now ready for client connections":
 docker exec -e SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" tec-orm-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b \

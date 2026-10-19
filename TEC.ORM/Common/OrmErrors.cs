@@ -64,6 +64,14 @@ public static class OrmErrors
     public static Error TooManyResults(int limit) =>
         Error.Validation(TooManyResultsCode, $"A busca retornaria mais de {limit} registros. Use a listagem paginada.", "specification");
 
+    /// <summary>
+    /// Exclusão lógica que propagaria para mais dependentes que o limite configurado (HTTP 400; mesmo código da busca).
+    /// </summary>
+    /// <param name="limit">Limite de dependentes configurado.</param>
+    public static Error SoftDeletePropagationTooLarge(int limit) =>
+        Error.Validation(TooManyResultsCode,
+            $"A exclusão alcançaria mais de {limit} registros dependentes. Exclua os dependentes em lotes antes.", "id");
+
     /// <summary>Consulta SQL que devolveria mais linhas que o limite configurado (HTTP 400; mesmo código da busca).</summary>
     /// <param name="limit">Limite de linhas configurado.</param>
     public static Error QueryTooManyRows(int limit) =>

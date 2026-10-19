@@ -55,7 +55,7 @@ sequenceDiagram
 |---|---|
 | Entrada | Só `SqlQuery` (sempre parametrizada): não existe sobrecarga com `string` solta |
 | Conexão | `OrmConnectionKind.ReadOnly`: segredo `ReadOnlyConnectionSecretName` (ou o principal) com `ApplicationIntent=ReadOnly`; uma conexão por chamada (o pool reaproveita) |
-| Transação | **Não** participa da transação do EF Core / `IUnitOfWork` |
+| Transação | **Não** participa da transação do EF Core / `IUnitOfWork` nem de um `TransactionScope` ambiente: a conexão de leitura tem `Enlist=false` (sem promoção a transação distribuída). Dentro do escopo, ela lê só o que já foi confirmado |
 | Exclusão lógica | **Não** aplica o filtro global: escreva `IsDeleted = 0` no SQL |
 | Limites | `CommandTimeoutSeconds` e `MaxQueryRows`; resultado lido em fluxo, sem carregar tudo antes |
 | Resiliência | Sempre leitura e conexão própria: repetida em falha transitória ([🔁 Resiliência](resiliencia.md)) |
@@ -124,6 +124,7 @@ public sealed class ReportService(IOrmQueryExecutor queries)
 | `Name` | `string` | Nome para logs, traces e métricas (baixa cardinalidade) |
 | `Sql` | `string` | Texto com marcadores `@nome` |
 | `Parameters` | `IReadOnlyDictionary<string, object?>` | **Somente leitura** (não pode ser trocado depois da validação); nomes sem diferenciar maiúsculas |
+| `EscapeLike(string value)` | `string` | Escapa `%`, `_`, `[` e `\` para buscar o texto literal num `LIKE`; use com `ESCAPE '\'` (ex.: `$"... LIKE {SqlQuery.EscapeLike(prefixo) + "%"} ESCAPE '\'"`) |
 | `ToString()` | `string` | `SqlQuery { Name = ..., Parameters = N }`, sem SQL nem valores |
 | `MaxSqlLength` / `MaxParameters` | `const int` | `32768` / `2000` (o SQL Server aceita 2100) |
 
@@ -132,7 +133,7 @@ public sealed class ReportService(IOrmQueryExecutor queries)
 | `name` | Letras, dígitos, `.`, `-`, `_`; começa com letra ou dígito; até 100 caracteres | `ArgumentException` |
 | `sql` | Não vazio; até 32.768 caracteres | `ArgumentException` |
 | Nome de parâmetro | `^[A-Za-z_][A-Za-z0-9_]{0,127}$` | `ArgumentException` |
-| Quantidade de parâmetros | Até 2.000 | `ArgumentException` |
+| Quantidade de parâmetros | Até 2.000, contando **cada item** de lista (`IEnumerable` exceto `string`/`byte[]`, que o Dapper expande em um parâmetro por item; escreva `IN {ids}`, sem parênteses) | `ArgumentException` |
 
 ### OrmQueryExecutor (Dapper)
 
@@ -193,6 +194,8 @@ também é conferido. A verificação é comparada com o parser oficial do T-SQL
 | `SELECT 1 DROP TABLE x` / `SELECT 1DROP TABLE x` | ❌ o T-SQL não exige `;` nem espaço entre comandos |
 | `SELECT * INTO Copy FROM Orders` | ❌ `INTO` |
 | `SELECT 1; SELECT 2` | ❌ mais de um comando |
+| `SELECT 1 SELECT 2` | ✅ aceito pela verificação (sem `;` ela não separa comandos de leitura), mas o executor recusa o segundo resultado: cancela o comando e devolve `ORM_CONSULTA_NAO_PERMITIDA`, sem trafegá-lo |
+| `WITH (UPDLOCK)`, `XLOCK`, `TABLOCKX`, `HOLDLOCK` | ❌ dicas de bloqueio que travam escritores |
 | `SELECT 'abc` | ❌ literal sem fechamento |
 
 ---

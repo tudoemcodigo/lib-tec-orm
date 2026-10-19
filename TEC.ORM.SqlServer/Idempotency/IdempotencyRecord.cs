@@ -42,6 +42,9 @@ public static class IdempotencyModelBuilderExtensions
     /// <summary>Nome padrão da tabela.</summary>
     public const string DefaultTableName = "IdempotencyKeys";
 
+    /// <summary>Collation das colunas <c>Scope</c> e <c>IdempotencyKey</c>: binária (comparação ordinal, sensível a maiúsculas).</summary>
+    public const string BinaryCollation = "Latin1_General_100_BIN2";
+
     /// <summary>
     /// Mapeia a tabela usada pelo <see cref="EfIdempotencyStore{TContext}"/>. Chame no <c>OnModelCreating</c> e gere uma
     /// migration (a tabela faz parte do banco da aplicação).
@@ -67,8 +70,12 @@ public static class IdempotencyModelBuilderExtensions
         {
             entity.ToTable(tableName, schema);
             entity.HasKey(r => new { r.Scope, r.Key });
-            entity.Property(r => r.Scope).HasMaxLength(TEC.Cqrs.Idempotency.IdempotencyKey.MaxScopeLength).IsUnicode().IsRequired();
-            entity.Property(r => r.Key).HasColumnName("IdempotencyKey").HasMaxLength(TEC.Cqrs.Idempotency.IdempotencyKey.MaxKeyLength).IsUnicode().IsRequired();
+            // Comparação ORDINAL (contrato do IIdempotencyStore): collation binária, senão a collation padrão (CI) do banco
+            // trataria "Abc" e "abc" como a mesma chave. O escopo (hash SHA-256 hex, 64 caracteres) cabe nos 200.
+            entity.Property(r => r.Scope).HasMaxLength(TEC.Cqrs.Idempotency.IdempotencyKey.MaxScopeLength).IsUnicode().IsRequired()
+                .UseCollation(BinaryCollation);
+            entity.Property(r => r.Key).HasColumnName("IdempotencyKey").HasMaxLength(TEC.Cqrs.Idempotency.IdempotencyKey.MaxKeyLength).IsUnicode().IsRequired()
+                .UseCollation(BinaryCollation);
             entity.Property(r => r.RequestHash).HasMaxLength(TEC.Cqrs.Idempotency.IdempotencyRequest.MaxRequestHashLength).IsUnicode(false).IsRequired();
             entity.Property(r => r.ContentType).HasMaxLength(200);
             entity.Property(r => r.HeadersJson).HasMaxLength(4000);

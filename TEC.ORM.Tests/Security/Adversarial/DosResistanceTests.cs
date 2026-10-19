@@ -8,6 +8,7 @@ using TEC.ORM.Common;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
 using TEC.ORM.Specifications;
+using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Internal;
 using TEC.ORM.SqlServer.SoftDelete;
 using TEC.ORM.Tests.Database.CodeFirst;
@@ -135,6 +136,8 @@ public class DosResistanceTests
         yield return () => ("tamanho negativo", new PageRequest(1, -5));
         yield return () => ("página negativa", new PageRequest(-1, 10));
         yield return () => ("deslocamento que estoura int", new PageRequest(int.MaxValue, 100));
+        // Revisão 2026-10-19 (BUG-06): OFFSET profundo (o banco ordenaria e descartaria as linhas anteriores a cada chamada)
+        yield return () => ("deslocamento além de MaxPageOffset", new PageRequest(int.MaxValue / 100, 100));
         yield return () => ("ordenação de 1 MB", new PageRequest(1, 10, new string('a', 1024 * 1024)));
         yield return () => ("ordenação por coluna bloqueada", new PageRequest(1, 10, "IsDeleted"));
         yield return () => ("ordenação inexistente", new PageRequest(1, 10, "Name; DROP TABLE Customers"));
@@ -158,11 +161,11 @@ public class DosResistanceTests
     [Test]
     public async Task ListAsync_LastValidPage_IsAnsweredWithoutLoadingTheTable()
     {
-        // Página muito além do total: a contagem já responde (página vazia), sem buscar linhas
+        // Página além do total (no limite de MaxPageOffset): a contagem já responde (página vazia), sem buscar linhas
         var (context, counter, customers) = await SeedAsync(300);
         await using var _ = context;
 
-        var result = await customers.ListAsync(new PageRequest(int.MaxValue / 100, 100));
+        var result = await customers.ListAsync(new PageRequest(new OrmOptions().MaxPageOffset / 100 + 1, 100));
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value.Items).IsEmpty();

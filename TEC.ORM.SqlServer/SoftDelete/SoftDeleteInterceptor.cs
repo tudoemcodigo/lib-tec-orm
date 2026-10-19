@@ -1,8 +1,11 @@
 using System.Collections;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata;
+using TEC.Core.Common.Results;
+using TEC.ORM.Common;
 using TEC.ORM.Entities;
 
 namespace TEC.ORM.SqlServer.SoftDelete;
@@ -25,9 +28,20 @@ namespace TEC.ORM.SqlServer.SoftDelete;
 /// no rastreador antes do salvamento (dependentes <c>Deleted</c>, chaves estrangeiras opcionais anuladas): o interceptor desfaz
 /// isso para os dependentes preservados. O <c>OrmRepository.DeleteAsync</c> desliga a cascata do rastreador durante a operação,
 /// então não há o que desfazer.</para>
+/// <para>Custo: uma consulta por navegação em cascata de cada principal excluído (N+1) e um <c>UPDATE</c> por linha. Por isso
+/// há um teto (<paramref name="maxPropagation"/>, <c>OrmOptions.MaxSoftDeletePropagation</c>): cada carga lê no máximo o que
+/// ainda cabe nele (+1) e, passando dele, o salvamento falha com <c>ORM_LIMITE_EXCEDIDO</c> sem gravar nada. Os dependentes
+/// rastreados são achados por um índice por chave estrangeira montado uma vez por salvamento (antes: varredura do rastreador
+/// inteiro para cada principal).</para>
 /// </remarks>
-internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInterceptor
+/// <param name="time">Relógio do <c>DeletedAt</c>.</param>
+/// <param name="maxPropagation">Máximo de dependentes excluídos por propagação num salvamento.</param>
+internal sealed class SoftDeleteInterceptor(TimeProvider time, int maxPropagation = SoftDeleteInterceptor.DefaultMaxPropagation)
+    : SaveChangesInterceptor
 {
+    /// <summary>Padrão de <c>OrmOptions.MaxSoftDeletePropagation</c>.</summary>
+    internal const int DefaultMaxPropagation = 10_000;
+
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     {
         // Caminho síncrono: as cargas são síncronas, então a ValueTask já vem concluída
@@ -56,7 +70,8 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
         if (roots.Count == 0)
             return;
 
-        var operation = new Propagation(context, time.GetUtcNow(), tracker.CascadeDeleteTiming == CascadeTiming.Immediate, async, cancellationToken);
+        var operation = new Propagation(context, time.GetUtcNow(), tracker.CascadeDeleteTiming == CascadeTiming.Immediate, maxPropagation,
+            async, cancellationToken);
         // DetectChanges já rodou (Entries); durante a propagação, as alterações são feitas pela API do rastreador
         bool autoDetect = tracker.AutoDetectChangesEnabled;
         tracker.AutoDetectChangesEnabled = false;
@@ -73,10 +88,23 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
         }
     }
 
-    /// <summary>Uma propagação (um salvamento): o mesmo instante para todas as entidades e o controle de visitadas.</summary>
-    private sealed class Propagation(DbContext context, DateTimeOffset now, bool cascadedByTracker, bool async, CancellationToken cancellationToken)
+    /// <summary>
+    /// Uma propagação (um salvamento): o mesmo instante para todas as entidades, o controle de visitadas, o teto e o índice dos
+    /// dependentes rastreados por chave estrangeira.
+    /// </summary>
+    private sealed class Propagation(DbContext context, DateTimeOffset now, bool cascadedByTracker, int maxPropagation, bool async,
+        CancellationToken cancellationToken)
     {
+        private static readonly MethodInfo LoadBoundedMethod =
+            typeof(Propagation).GetMethod(nameof(LoadBoundedAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
+
         private readonly HashSet<object> _visited = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>Entradas rastreadas por chave estrangeira e valor (atual e original), montado na primeira consulta à chave.</summary>
+        private readonly Dictionary<IForeignKey, Dictionary<object?[], List<EntityEntry>>> _byForeignKey = [];
+
+        /// <summary>Dependentes já excluídos por propagação neste salvamento.</summary>
+        private int _propagated;
 
         /// <summary>Converte a exclusão física da entrada em lógica.</summary>
         public void MarkDeleted(EntityEntry entry)
@@ -99,15 +127,11 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
                 bool cascade = foreignKey.IsOwnership || foreignKey.DeleteBehavior is DeleteBehavior.Cascade or DeleteBehavior.ClientCascade;
                 bool dependentIsSoftDelete = typeof(ISoftDelete).IsAssignableFrom(foreignKey.DeclaringEntityType.ClrType);
 
-                // Dependentes ISoftDelete ainda não carregados: carrega pela navegação (o filtro global ignora os já excluídos)
+                // Dependentes ISoftDelete ainda não carregados: carrega pela navegação (o filtro global ignora os já excluídos),
+                // no máximo o que ainda cabe no teto
                 if (softDelete && cascade && dependentIsSoftDelete && !foreignKey.IsOwnership &&
                     foreignKey.PrincipalToDependent is { } navigation && principal.Navigation(navigation.Name) is { IsLoaded: false } toLoad)
-                {
-                    if (async)
-                        await toLoad.LoadAsync(cancellationToken).ConfigureAwait(false);
-                    else
-                        toLoad.Load();
-                }
+                    await LoadAsync(toLoad).ConfigureAwait(false);
 
                 foreach (var dependent in Dependents(principal, foreignKey))
                 {
@@ -118,6 +142,8 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
                     {
                         if (dependent.Entity is ISoftDelete { IsDeleted: true } && dependent.State != EntityState.Deleted)
                             continue;   // já excluído antes: mantém o DeletedAt original
+                        if (++_propagated > maxPropagation)
+                            throw new OrmSoftDeletePropagationException(OrmErrors.SoftDeletePropagationTooLarge(maxPropagation));
                         MarkDeleted(dependent);
                         await PropagateAsync(dependent, softDelete: true).ConfigureAwait(false);
                     }
@@ -152,33 +178,113 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
             }
         }
 
+        /// <summary>
+        /// Carrega a navegação lendo no máximo o que ainda cabe no teto (+1, para saber que passou): passando, falha antes de
+        /// trazer o resto. Coleção lida por inteiro é marcada como carregada, como faria o <c>Load</c>.
+        /// </summary>
+        private async ValueTask LoadAsync(NavigationEntry navigation)
+        {
+            int remaining = maxPropagation - _propagated;
+            var query = navigation.Query();
+            var load = (Func<IQueryable, int, bool, CancellationToken, Task<IList>>)LoadBoundedMethod.MakeGenericMethod(query.ElementType)
+                .CreateDelegate(typeof(Func<IQueryable, int, bool, CancellationToken, Task<IList>>));
+            var task = load(query, remaining + 1, async, cancellationToken);
+            var loaded = async ? await task.ConfigureAwait(false) : task.GetAwaiter().GetResult();
+            if (loaded.Count > remaining)
+                throw new OrmSoftDeletePropagationException(OrmErrors.SoftDeletePropagationTooLarge(maxPropagation));
+
+            navigation.IsLoaded = true;
+            foreach (object item in loaded)
+                Index(context.Entry(item));
+        }
+
+        private static async Task<IList> LoadBoundedAsync<T>(IQueryable query, int limit, bool async, CancellationToken cancellationToken)
+            where T : class
+        {
+            // Rastreadas, como no Load: a propagação marca e grava essas entradas
+            var bounded = ((IQueryable<T>)query).AsTracking().Take(limit);
+            return async ? await bounded.ToListAsync(cancellationToken).ConfigureAwait(false) : bounded.ToList();
+        }
+
         /// <summary>Entradas rastreadas que apontam para o principal pela chave estrangeira (valor atual ou original).</summary>
         private List<EntityEntry> Dependents(EntityEntry principal, IForeignKey foreignKey)
         {
             var principalValues = foreignKey.PrincipalKey.Properties.Select(p => principal.Property(p.Name).CurrentValue).ToArray();
-            var dependentType = foreignKey.DeclaringEntityType;
-            var result = new List<EntityEntry>();
-            foreach (var entry in context.ChangeTracker.Entries())
+            if (!IndexFor(foreignKey).TryGetValue(principalValues, out var candidates))
+                return [];
+
+            var result = new List<EntityEntry>(candidates.Count);
+            foreach (var entry in candidates)
             {
-                if (ReferenceEquals(entry.Entity, principal.Entity) || entry.State == EntityState.Detached ||
-                    !IsSameOrDerived(entry.Metadata, dependentType))
-                    continue;
-                if (Matches(entry, foreignKey, principalValues, original: false) || Matches(entry, foreignKey, principalValues, original: true))
+                if (!ReferenceEquals(entry.Entity, principal.Entity) && entry.State != EntityState.Detached)
                     result.Add(entry);
             }
             return result;
         }
 
-        private static bool Matches(EntityEntry entry, IForeignKey foreignKey, object?[] principalValues, bool original)
+        /// <summary>Índice da chave estrangeira; na primeira vez, percorre o rastreador uma única vez.</summary>
+        private Dictionary<object?[], List<EntityEntry>> IndexFor(IForeignKey foreignKey)
         {
-            for (int i = 0; i < principalValues.Length; i++)
+            if (_byForeignKey.TryGetValue(foreignKey, out var index))
+                return index;
+
+            index = new Dictionary<object?[], List<EntityEntry>>(KeyComparer.Instance);
+            _byForeignKey[foreignKey] = index;
+            foreach (var entry in context.ChangeTracker.Entries())
+                Add(index, foreignKey, entry);
+            return index;
+        }
+
+        /// <summary>Acrescenta uma entrada carregada durante a propagação aos índices já montados.</summary>
+        private void Index(EntityEntry entry)
+        {
+            foreach (var (foreignKey, index) in _byForeignKey)
+                Add(index, foreignKey, entry);
+        }
+
+        private static void Add(Dictionary<object?[], List<EntityEntry>> index, IForeignKey foreignKey, EntityEntry entry)
+        {
+            if (entry.State == EntityState.Detached || !IsSameOrDerived(entry.Metadata, foreignKey.DeclaringEntityType))
+                return;
+
+            var current = Values(entry, foreignKey, original: false);
+            var original = Values(entry, foreignKey, original: true);
+            if (current is not null)
+                AddTo(index, current, entry);
+            if (original is not null && (current is null || !KeyComparer.Instance.Equals(current, original)))
+                AddTo(index, original, entry);
+        }
+
+        private static void AddTo(Dictionary<object?[], List<EntityEntry>> index, object?[] key, EntityEntry entry)
+        {
+            if (!index.TryGetValue(key, out var entries))
+                index[key] = entries = [];
+            if (!entries.Contains(entry))
+                entries.Add(entry);
+        }
+
+        /// <summary>Valores da chave estrangeira (atual ou original); <c>null</c> se alguma parte é nula.</summary>
+        private static object?[]? Values(EntityEntry entry, IForeignKey foreignKey, bool original)
+        {
+            var values = new object?[foreignKey.Properties.Count];
+            for (int i = 0; i < values.Length; i++)
             {
                 var property = entry.Property(foreignKey.Properties[i].Name);
-                var value = original ? property.OriginalValue : property.CurrentValue;
-                if (value is null || !StructuralComparisons.StructuralEqualityComparer.Equals(value, principalValues[i]))
-                    return false;
+                values[i] = original ? property.OriginalValue : property.CurrentValue;
+                if (values[i] is null)
+                    return null;
             }
-            return true;
+            return values;
+        }
+
+        /// <summary>Igualdade estrutural de chaves compostas (inclusive <c>byte[]</c>).</summary>
+        private sealed class KeyComparer : IEqualityComparer<object?[]>
+        {
+            public static readonly KeyComparer Instance = new();
+
+            public bool Equals(object?[]? x, object?[]? y) => StructuralComparisons.StructuralEqualityComparer.Equals(x, y);
+
+            public int GetHashCode(object?[] obj) => StructuralComparisons.StructuralEqualityComparer.GetHashCode(obj);
         }
 
         private static bool IsSameOrDerived(IReadOnlyEntityType type, IReadOnlyEntityType target)
@@ -191,4 +297,13 @@ internal sealed class SoftDeleteInterceptor(TimeProvider time) : SaveChangesInte
             return false;
         }
     }
+}
+
+/// <summary>
+/// Propagação da exclusão lógica além de <c>OrmOptions.MaxSoftDeletePropagation</c>. Lançada dentro do salvamento (o
+/// interceptor não devolve <see cref="Result"/>); o <c>OrmOperationRunner</c> a converte de volta em <see cref="Error"/>.
+/// </summary>
+internal sealed class OrmSoftDeletePropagationException(Error error) : InvalidOperationException("Exclusão recusada: " + error.Code)
+{
+    public Error Error { get; } = error;
 }

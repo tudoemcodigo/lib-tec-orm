@@ -136,6 +136,7 @@ internal static class OrmExceptionTranslator
         {
             OrmConnectionException connection => new(connection.Error, true, 0),
             Auditing.OrmAuditException audit => new(audit.Error, false, 0),
+            SoftDelete.OrmSoftDeletePropagationException limit => new(limit.Error, false, 0),
             TimeoutException => new(OrmErrors.Timeout(), true, 0),
             _ when IsConnectionOpenFailure(exception) => new(OrmErrors.ConnectionUnavailable(), true, 0),
             _ => new(OrmErrors.Failure(), false, 0)

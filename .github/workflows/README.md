@@ -126,7 +126,7 @@ sequenceDiagram
 
 | Item | Como |
 |---|---|
-| SQL Server | `mcr.microsoft.com/mssql/server:2022-latest`, só em `127.0.0.1:1433`, senha `Tec1!` + 32 hex aleatórios por execução, passada por variável de ambiente (fora da linha de comando) e mascarada |
+| SQL Server | `mcr.microsoft.com/mssql/server` fixado por digest (`2022-CU27-GDR1-ubuntu-22.04`, atualizado à mão: o Dependabot não lê scripts), só em `127.0.0.1:1433`, senha `Tec1!` + 32 hex aleatórios por execução, passada por variável de ambiente (fora da linha de comando) e mascarada |
 | Banco | `tec_testes` com `READ_COMMITTED_SNAPSHOT ON` (como no Azure SQL) |
 | PR | Conexão em `TEC_TESTES_ORM_SQL_CONEXAO`, entregue ao TEC.Vault em memória; o teste do Key Vault se pula com motivo |
 | `main` (OIDC) | A mesma conexão gravada num segredo **temporário e exclusivo da execução** (`tec-testes-sql-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT`, expiração de 1 dia) e lida pelo TEC.Vault.AzureKeyVault, como em produção |

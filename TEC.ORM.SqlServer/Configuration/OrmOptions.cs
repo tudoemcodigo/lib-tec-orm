@@ -16,7 +16,14 @@ public enum IdentifierLogMode
     Hashed = 1,
 
     /// <summary>Não registra o identificador.</summary>
-    Omitted = 2
+    Omitted = 2,
+
+    /// <summary>
+    /// Padrão: decide pelo tipo do valor. Chaves técnicas (inteiros e <c>Guid</c>) como em <see cref="Plain"/>; <c>string</c> e
+    /// demais tipos (chaves naturais, que podem ser dado pessoal: CPF, e-mail) como em <see cref="Hashed"/>. O autor da exclusão
+    /// física (texto) só sai em claro quando é um <c>Guid</c> ou um número.
+    /// </summary>
+    Auto = 3
 }
 
 /// <summary>Opções do TEC.ORM para SQL Server.</summary>
@@ -52,6 +59,23 @@ public sealed class OrmOptions
     /// <summary>Itens máximos por página na listagem (1 a 10.000).</summary>
     public int MaxPageSize { get; set; } = 100;
 
+    /// <summary>
+    /// Itens máximos pulados pela listagem paginada (<c>(Page - 1) * PageSize</c>; 0 a 100.000.000; padrão 10.000). Página além
+    /// disso falha com <c>ORM_ENTRADA_INVALIDA</c> antes de ir ao banco: o <c>OFFSET</c> profundo obriga o SQL Server a ordenar e
+    /// descartar todas as linhas anteriores a cada chamada, com o custo controlado por quem pede a página. Para percorrer listas
+    /// longas, filtre por chave (ex.: <c>Id &gt; último</c>) com a busca por critérios.
+    /// </summary>
+    public int MaxPageOffset { get; set; } = 10_000;
+
+    /// <summary>
+    /// Ordenação por texto (<c>PageRequest.SortBy</c>) em entidade <b>sem</b> nenhuma propriedade <c>[Sortable]</c>. Padrão
+    /// <c>false</c> (falha fechada): só a chave e as datas de auditoria (<c>CreatedAt</c>, <c>UpdatedAt</c>) são aceitas, para
+    /// que um <c>?sort=</c> vindo da API não ordene por colunas sensíveis (hash, documento, autoria) e permita inferir valores pela
+    /// ordem. <c>true</c> volta ao comportamento anterior: qualquer propriedade escalar mapeada (exceto sombra, exclusão lógica e
+    /// tokens de concorrência). Com ao menos um <c>[Sortable]</c> na entidade, só as marcadas valem, nos dois casos.
+    /// </summary>
+    public bool AllowUnmarkedSortBy { get; set; }
+
     /// <summary>Registros máximos da busca por critérios (1 a 100.000); acima disso a busca falha com <c>ORM_LIMITE_EXCEDIDO</c>.</summary>
     public int MaxFindResults { get; set; } = 1_000;
 
@@ -60,6 +84,14 @@ public sealed class OrmOptions
     /// com <c>ORM_LIMITE_EXCEDIDO</c> e o comando é cancelado no banco, sem carregar o resto na memória.
     /// </summary>
     public int MaxQueryRows { get; set; } = 10_000;
+
+    /// <summary>
+    /// Entidades excluídas logicamente por propagação num único salvamento (1 a 1.000.000; padrão 10.000). A propagação carrega
+    /// os dependentes em cascata na memória (uma consulta por navegação de cada principal) e grava um <c>UPDATE</c> por linha:
+    /// acima do limite, a exclusão falha com <c>ORM_LIMITE_EXCEDIDO</c> sem gravar nada, em vez de esgotar memória e tempo.
+    /// Agregados maiores: exclua os dependentes em lotes antes do principal.
+    /// </summary>
+    public int MaxSoftDeletePropagation { get; set; } = 10_000;
 
     /// <summary>
     /// Novas tentativas em falha transitória (0 a 5; padrão 2), <b>só em leituras fora de transação</b> (repositório e
@@ -89,8 +121,11 @@ public sealed class OrmOptions
     /// <summary>Recusa, nas leituras complexas, SQL que não seja somente leitura (defesa em profundidade). Padrão <c>true</c>.</summary>
     public bool EnforceReadOnlyQueries { get; set; } = true;
 
-    /// <summary>Identificador nos logs de auditoria.</summary>
-    public IdentifierLogMode IdentifierLogMode { get; set; } = IdentifierLogMode.Plain;
+    /// <summary>
+    /// Identificador do registro (e autor da exclusão física) nos logs de auditoria. Padrão <see cref="IdentifierLogMode.Auto"/>:
+    /// chaves técnicas em claro, chaves texto com HMAC.
+    /// </summary>
+    public IdentifierLogMode IdentifierLogMode { get; set; } = IdentifierLogMode.Auto;
 
     /// <summary>Segredo usado pela conexão do tipo informado.</summary>
     internal string SecretNameFor(bool readOnly) => readOnly ? ReadOnlyConnectionSecretName ?? ConnectionSecretName : ConnectionSecretName;
@@ -108,10 +143,14 @@ public sealed class OrmOptions
             throw new InvalidConfigurationException("TecOrm:" + nameof(CommandTimeoutSeconds));
         if (MaxPageSize is < 1 or > 10_000)
             throw new InvalidConfigurationException("TecOrm:" + nameof(MaxPageSize));
+        if (MaxPageOffset is < 0 or > 100_000_000)
+            throw new InvalidConfigurationException("TecOrm:" + nameof(MaxPageOffset));
         if (MaxFindResults is < 1 or > 100_000)
             throw new InvalidConfigurationException("TecOrm:" + nameof(MaxFindResults));
         if (MaxQueryRows is < 1 or > 1_000_000)
             throw new InvalidConfigurationException("TecOrm:" + nameof(MaxQueryRows));
+        if (MaxSoftDeletePropagation is < 1 or > 1_000_000)
+            throw new InvalidConfigurationException("TecOrm:" + nameof(MaxSoftDeletePropagation));
         if (TransientRetryCount is < 0 or > 5)
             throw new InvalidConfigurationException("TecOrm:" + nameof(TransientRetryCount));
         if (TransientRetryDelay < TimeSpan.FromMilliseconds(10) || TransientRetryDelay > TimeSpan.FromSeconds(10))

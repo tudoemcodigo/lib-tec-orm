@@ -2,6 +2,37 @@
 
 Todas as mudanças relevantes do **TEC.ORM** são registradas aqui. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/). Enquanto a versão for `0.x`, mudanças incompatíveis podem ocorrer em versões MINOR. Os dois pacotes (`TEC.ORM`, que leva o gerador, e `TEC.ORM.SqlServer`) saem sempre juntos, com a mesma versão, e devem ser usados na mesma versão (o satélite usa internos do núcleo).
 
+## [0.2.0] - Não publicado
+
+Correções da [revisão técnica de 2026-10-19](docs/revisao-tecnica.md). MINOR (0.x) por trazer mudanças de comportamento incompatíveis, marcadas com ⚠️.
+
+### 🔒 Segurança
+
+- **Dependência vulnerável (ORG-01):** `System.Security.Cryptography.Pkcs` fixado em 10.0.13 no `net10.0` (transitivo do `Microsoft.Data.SqlClient` 6.1.6, que trazia a 9.0.11 com GHSA-846f-f764-76mx e GHSA-2fmv-rv2c-59x7). O build volta a passar com a auditoria NuGet ligada.
+- **Valor de coluna no log 3005 (SEG-01):** exceções de conversão (`FormatException`, `InvalidCastException`, `OverflowException`, `DataException` do Dapper) são registradas sem a mensagem (só tipos e pilha).
+- **Autoria da exclusão física (SEG-02):** o log 3007 passa a ter `{Actor}` (id do `ICurrentUser`, conforme `IdentifierLogMode`) e `{Rows}` (linhas removidas, inclusive no lote); `OrmOperation` ganhou `Actor` e `AffectedRows`. ⚠️ `HardDeleteAsync` de entidade `IAuditable` sem identidade autenticada é recusado com `ORM_AUDITORIA_SEM_IDENTIDADE`, como as demais gravações.
+- ⚠️ **`SortBy` falha fechada (SEG-03):** entidade sem `[Sortable]` aceita só a chave e `CreatedAt`/`UpdatedAt`. `OrmOptions.AllowUnmarkedSortBy = true` volta ao comportamento anterior (qualquer propriedade escalar). Justificativa: `?sort=PasswordHash` vindo da API permitia inferir valores pela ordem.
+- **Vários resultados (SEG-04):** o executor recusa um segundo resultado (`SELECT 1 SELECT 2` sem `;`) com `ORM_CONSULTA_NAO_PERMITIDA`, cancelando o comando (antes era drenado fora do `MaxQueryRows`); a verificação de somente leitura recusa `UPDLOCK`, `XLOCK`, `TABLOCKX` e `HOLDLOCK`.
+- **`IN` e `LIKE` (SEG-05):** cada item de lista conta no limite de 2.000 parâmetros do `SqlQuery`; novo `SqlQuery.EscapeLike(string)` para `LIKE ... ESCAPE '\'`.
+- ⚠️ **`IdentifierLogMode.Auto` como padrão (SEG-06):** inteiros e `Guid` em claro; `string` e demais tipos com HMAC. Para o comportamento anterior, `IdentifierLogMode = Plain`.
+
+### 🐛 Corrigido
+
+- **`TransactionScope` (BUG-01):** a conexão de leitura do `IOrmQueryExecutor` tem `Enlist=false`: dentro de um `TransactionScope` com o EF Core, a transação não é mais promovida a distribuída (falhava no Linux).
+- **Propagação da exclusão lógica (BUG-02):** teto `OrmOptions.MaxSoftDeletePropagation` (padrão 10.000; acima, `ORM_LIMITE_EXCEDIDO` sem gravar nada e sem carregar além do teto) e dependentes rastreados achados por índice de chave estrangeira (antes, varredura O(n²) do rastreador). ⚠️ Exclusões que propagavam para mais de 10.000 dependentes passam a falhar. Novo `OrmErrors.SoftDeletePropagationTooLarge`.
+- **Corrida no `UpdateAsync` (BUG-03):** `IsDeleted` é token de concorrência (convenção, sem mudança de schema): exclusão concorrente entre a verificação e o `UPDATE` resulta em `ORM_CONCORRENCIA`, sem alterar o registro excluído.
+- **Autoria devolvida pelo `UpdateAsync` (BUG-04):** em entidade `IAuditable`, os campos de criação e de exclusão devolvidos são os do banco (lidos na própria verificação de existência, sem consulta extra).
+- **Dependentes criados já excluídos (BUG-05):** `CreateAsync` zera `IsDeleted`/`DeletedAt` de todo dependente novo do grafo, não só da raiz.
+- ⚠️ **Paginação profunda (BUG-06):** `OrmOptions.MaxPageOffset` (padrão 10.000): página que pularia mais itens é `ORM_ENTRADA_INVALIDA` antes de ir ao banco.
+- **`TECORM014` (IMP-01):** também avisa quando `HardDeleteAsync` é referenciado como *method group*.
+- **Índice do `HasSoftDelete` (IMP-02):** o filtro usa o nome real da coluna (`HasColumnName`), aplicado pela convenção; documentado o padrão de índice útil (o padrão `index: true` foi mantido para não gerar migration de remoção).
+- **Lista branca de ordenação (IMP-03):** calculada uma vez por modelo.
+- ⚠️ **Idempotência (contrato do TEC.Cqrs):** colunas `Scope` e `IdempotencyKey` com collation binária `Latin1_General_100_BIN2` (comparação ordinal). Tabelas existentes precisam de migração manual da chave primária ([🔁 Idempotência](docs/idempotencia.md)).
+
+### 🔧 Interno
+
+- Imagem do SQL Server da integração fixada por digest (`2022-CU27-GDR1-ubuntu-22.04`); `TEC.Vault` 0.0.1 → 0.1.0.
+
 ## [0.1.0] - 2026-10-09
 
 ### ✨ Adicionado

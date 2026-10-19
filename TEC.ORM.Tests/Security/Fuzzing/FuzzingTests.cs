@@ -225,10 +225,12 @@ public partial class FuzzingTests
         foreach (string name in new[] { "Ana", "Bia", "Caio" })
             customers.CreateAsync(new Customer { Name = name, Email = $"{name}@exemplo.com" }).GetAwaiter().GetResult();
 
-        string[] allowed = ["Id", "Name", "Email", "Active"];
+        // Só as marcadas com [Sortable] (Id e Active não são)
+        string[] allowed = ["Name", "Email"];
         var sortGen = Gen.OneOf(
             Hostile.AnyText,
-            Gen.Elements([.. allowed, "IsDeleted", "DeletedAt", "Orders", "Name ", " Name", "Name--", "Name;DROP"]).SelectMany(Hostile.RandomCase));
+            Gen.Elements([.. allowed, "Id", "Active", "IsDeleted", "DeletedAt", "Orders", "Name ", " Name", "Name--", "Name;DROP"])
+                .SelectMany(Hostile.RandomCase));
 
         Prop.ForAll(sortGen.ToArbitrary(), sortBy =>
         {
@@ -277,7 +279,8 @@ public partial class FuzzingTests
     [Test]
     public void FormatIdentifier_ArbitraryInput_IsBoundedAndWithoutControlCharacters()
     {
-        var plain = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance, TestOrm.Options());
+        var plain = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance, TestOrm.Options(o => o.IdentifierLogMode = IdentifierLogMode.Plain));
+        var auto = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance, TestOrm.Options());
         var hashed = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance, TestOrm.Options(o => o.IdentifierLogMode = IdentifierLogMode.Hashed));
         var omitted = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance, TestOrm.Options(o => o.IdentifierLogMode = IdentifierLogMode.Omitted));
 
@@ -295,6 +298,10 @@ public partial class FuzzingTests
 
             if (omitted.FormatIdentifier(identifier) != "-")
                 throw new InvalidOperationException("Identificador omitido apareceu no log.");
+
+            // Padrão (Auto): chave texto nunca em claro
+            if (auto.FormatIdentifier(identifier) != hash)
+                throw new InvalidOperationException($"Chave texto em claro no modo Auto: {Hostile.Show(identifier)}");
         }).Check(Hostile.Config(1_000));
     }
 

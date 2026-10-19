@@ -224,7 +224,8 @@ public string Projection { get; set; } = "";                          // ❌ col
 **Aviso.** Toda chamada a um método marcado com `[HardDelete]` (`TEC.ORM.Abstractions`): `IOrmRepository.HardDeleteAsync`
 (por `Id` e em lote), o atalho `OrmRepositoryExtensions.HardDeleteAsync` e `OrmRepository.HardDeleteAsync`. Também quando
 o método chamado sobrescreve ou implementa um marcado, mesmo sem repetir o atributo. Chamadas feitas **de dentro** de um
-método marcado não avisam: o alerta passa para quem chama esse método.
+método marcado não avisam: o alerta passa para quem chama esse método. A referência como *method group*
+(`Func<...> apagar = repository.HardDeleteAsync;`) também avisa, no ponto em que o método é referenciado.
 
 ```text
 warning TECORM014: ATENÇÃO: 'IOrmRepository.HardDeleteAsync' faz exclusão física: o registro será excluído de fato do banco (DELETE), sem exclusão lógica e sem como desfazer. ...

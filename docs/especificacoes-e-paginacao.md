@@ -102,6 +102,7 @@ var total  = await repository.CountAsync(new OrdersOfCustomer(customerId), ct);
 | `Page < 1` | `page` | A página deve ser maior ou igual a 1. |
 | `PageSize < 1` ou `> maxPageSize` | `pageSize` | O tamanho da página deve estar entre 1 e N. |
 | `Offset` estouraria `int` | `page` | Página fora do limite. |
+| `Offset` > `OrmOptions.MaxPageOffset` (padrão 10.000), verificado antes de ir ao banco | `page` | A página pularia mais de N itens... |
 | `SortBy` vazio ou com mais de 128 caracteres | `sortBy` | Ordenação inválida. |
 | `SortBy` fora da lista branca (verificado pelo repositório) | `sortBy` | Ordenação por um campo não permitido. |
 
@@ -124,7 +125,8 @@ public sealed record ListOrders(int? Page, int? Size, string? Sort, bool? Desc);
 | Situação da entidade | `SortBy` aceito |
 |---|---|
 | Tem **ao menos uma** propriedade `[Sortable]` | Só as marcadas (lista branca explícita) |
-| Não tem nenhuma | Qualquer propriedade escalar mapeada |
+| Não tem nenhuma (padrão) | Só a chave e `CreatedAt`/`UpdatedAt` (falha fechada) |
+| Não tem nenhuma, com `OrmOptions.AllowUnmarkedSortBy = true` | Qualquer propriedade escalar mapeada (comportamento até a 0.1.0) |
 | Sempre recusadas | Propriedades sombra, `IsDeleted`/`DeletedAt` e tokens de concorrência (`rowversion`, `[ConcurrencyCheck]`) |
 
 ```csharp
@@ -177,8 +179,12 @@ await Assert.That(filter(new Order { CustomerId = customerId, Amount = 50m })).I
 ## 🛡️ Segurança
 
 > [!IMPORTANT]
-> **Marque `[Sortable]` sempre que o `SortBy` vier do usuário.** Sem a lista branca, ordenar por uma coluna sensível
-> (`PasswordHash`, `TaxId`) permite inferir o valor dela pela posição dos registros na página.
+> **Marque `[Sortable]` sempre que o `SortBy` vier do usuário.** Sem a lista branca só a chave e as datas de auditoria são
+> aceitas; com `AllowUnmarkedSortBy`, ordenar por uma coluna sensível (`PasswordHash`, `TaxId`) permitiria inferir o valor
+> dela pela posição dos registros na página.
+>
+> O `OFFSET` profundo é limitado por `MaxPageOffset`: para percorrer listas longas, filtre por chave (`Id > último`) com
+> `FindAsync`.
 
 - A mensagem de `SortBy` recusado é fixa: nunca ecoa a entrada.
 - `MaxPageSize` e `MaxFindResults` limitam o que uma requisição pode materializar.

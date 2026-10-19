@@ -12,6 +12,8 @@ namespace TEC.ORM.SqlServer.Internal;
 /// exige <c>;</c> entre comandos (<c>SELECT 1 DROP TABLE x</c> é um lote válido), por isso as palavras de escrita são
 /// recusadas em qualquer posição, e não só no início. Nem espaço ele exige depois de um número: <c>SELECT 1DROP TABLE x</c>
 /// executa o <c>DROP</c>, então o que vem depois de um literal numérico também é conferido.
+/// <para>Vários <c>SELECT</c> sem <c>;</c> (<c>SELECT 1 SELECT 2</c>) passam por aqui; o executor recusa o segundo resultado
+/// (ver <c>OrmQueryExecutor</c>), cancelando o comando antes de ele trafegar.</para>
 /// </remarks>
 internal static class ReadOnlySqlGuard
 {
@@ -26,7 +28,9 @@ internal static class ReadOnlySqlGuard
         "UPDATETEXT", "WRITETEXT", "CHECKPOINT", "SETUSER", "REVERT", "RECEIVE",
         // DDL sem CREATE/ALTER (ADD SIGNATURE, ADD SENSITIVITY CLASSIFICATION, DISABLE/ENABLE TRIGGER), chaves e cursores
         // (OPEN/CLOSE SYMMETRIC KEY, MASTER KEY, cursor) e Service Broker (SEND, END/MOVE/GET CONVERSATION)
-        "ADD", "DISABLE", "ENABLE", "OPEN", "CLOSE", "DEALLOCATE", "SEND", "CONVERSATION"
+        "ADD", "DISABLE", "ENABLE", "OPEN", "CLOSE", "DEALLOCATE", "SEND", "CONVERSATION",
+        // Dicas de bloqueio de escrita/exclusivo (WITH (UPDLOCK) etc.): uma leitura que trava escritores não é "somente leitura"
+        "UPDLOCK", "XLOCK", "TABLOCKX", "HOLDLOCK"
     };
 
     private static readonly char[] LineBreaks = ['\r', '\n'];

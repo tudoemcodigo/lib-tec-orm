@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TEC.Core.Common.Results;
@@ -149,5 +150,27 @@ public class EfIdempotencyStoreRegistrationTests
                 new IdempotencyRequest(new IdempotencyKey("u", "k"), "h", TimeSpan.FromHours(1), TimeSpan.FromMinutes(1)), CancellationToken.None))
             .ThrowsExactly<InvalidOperationException>();
         await Assert.That(ex!.Message).Contains("AddTecIdempotency");
+    }
+
+    private sealed class IdempotencyModelContext(DbContextOptions options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.AddTecIdempotency("app");
+    }
+
+    [Test]
+    public async Task Scope_and_key_columns_use_binary_collation()
+    {
+        // Contrato do IIdempotencyStore (TEC.Cqrs): escopo e chave comparados de forma ORDINAL; com a collation padrão (CI)
+        // do SQL Server, "Abc" e "abc" colidiriam na chave primária
+        await using var context = new IdempotencyModelContext(new DbContextOptionsBuilder<IdempotencyModelContext>().UseSqlServer().Options);
+        var entity = context.GetService<Microsoft.EntityFrameworkCore.Metadata.IDesignTimeModel>().Model.GetEntityTypes().Single();
+
+        foreach (string column in new[] { "Scope", "Key" })
+        {
+            var property = entity.FindProperty(column)!;
+            await Assert.That(property.GetCollation()).IsEqualTo(IdempotencyModelBuilderExtensions.BinaryCollation);
+            // Escopo do TEC.Cqrs 0.2.0: hash SHA-256 em hex (64 caracteres)
+            await Assert.That(property.GetMaxLength() ?? 0).IsGreaterThanOrEqualTo(64);
+        }
     }
 }

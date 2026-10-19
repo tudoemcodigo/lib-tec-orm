@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Core.Common.Results;
 using TEC.Core.Exceptions;
 using TEC.ORM.Common;
@@ -298,7 +299,8 @@ public class ResilienceTests
     [Arguments("zero\u200Bwidth")]
     public async Task Plain_identifier_never_carries_format_or_line_separator_characters(string identifier)
     {
-        var (runner, _) = CreateRunner();
+        var runner = new OrmOperationRunner(NullLogger<OrmOperationRunner>.Instance,
+            TestOrm.Options(o => o.IdentifierLogMode = IdentifierLogMode.Plain));
 
         string formatted = runner.FormatIdentifier(identifier);
 

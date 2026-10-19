@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Operations;
 namespace TEC.ORM.Mapping.Generator;
 
 /// <summary>
-/// Alerta de exclusão física (TECORM014): aviso em toda chamada a um método marcado com <c>[HardDelete]</c> (ou que sobrescreve
-/// ou implementa um método marcado), porque o registro será excluído de fato do banco, sem volta.
+/// Alerta de exclusão física (TECORM014): aviso em toda chamada (ou referência como <i>method group</i>) a um método marcado
+/// com <c>[HardDelete]</c> (ou que sobrescreve ou implementa um método marcado), porque o registro será excluído de fato do banco, sem volta.
 /// </summary>
 /// <remarks>
 /// Chamadas feitas de dentro de um método também marcado não geram o aviso: o alerta passa para quem chama esse método.
@@ -33,17 +33,23 @@ public sealed class HardDeleteUsageAnalyzer : DiagnosticAnalyzer
             if (attribute is null)
                 return;   // TEC.ORM não referenciado
 
+            // Chamada direta e referência como method group (delegate): pelo delegate, a chamada posterior não é vista
             start.RegisterOperationAction(operation =>
             {
-                var invocation = (IInvocationOperation)operation.Operation;
-                if (!IsHardDelete(invocation.TargetMethod, attribute) ||
+                var target = operation.Operation switch
+                {
+                    IInvocationOperation invocation => invocation.TargetMethod,
+                    IMethodReferenceOperation reference => reference.Method,
+                    _ => null
+                };
+                if (target is null || !IsHardDelete(target, attribute) ||
                     operation.ContainingSymbol is IMethodSymbol caller && IsHardDelete(caller, attribute))
                     return;
 
-                var method = invocation.TargetMethod.ReducedFrom ?? invocation.TargetMethod;
-                operation.ReportDiagnostic(Diagnostic.Create(UsageDiagnostics.HardDelete, invocation.Syntax.GetLocation(),
+                var method = target.ReducedFrom ?? target;
+                operation.ReportDiagnostic(Diagnostic.Create(UsageDiagnostics.HardDelete, operation.Operation.Syntax.GetLocation(),
                     $"{method.ContainingType.Name}.{method.Name}"));
-            }, OperationKind.Invocation);
+            }, OperationKind.Invocation, OperationKind.MethodReference);
         });
     }
 

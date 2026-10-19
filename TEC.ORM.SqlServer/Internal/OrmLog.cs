@@ -40,9 +40,9 @@ internal static partial class OrmLog
     public static partial void Canceled(ILogger logger, string provider, string operation, string target, string identifier, long elapsedMilliseconds);
 
     [LoggerMessage(3007, LogLevel.Warning,
-        "Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) removeu os registros de fato do banco (irreversível) em {ElapsedMilliseconds} ms.")]
+        "Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) por {Actor} removeu {Rows} linha(s) de fato do banco (irreversível) em {ElapsedMilliseconds} ms.")]
     public static partial void HardDeleteSucceeded(ILogger logger, string provider, string operation, string target, string identifier,
-        long elapsedMilliseconds);
+        string actor, string rows, long elapsedMilliseconds);
 
     [LoggerMessage(3008, LogLevel.Warning,
         "ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (SQL {SqlErrorNumber}); nova tentativa {Retry} de {MaxRetries}.")]

@@ -1,4 +1,6 @@
+using System.Collections.Frozen;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -10,6 +12,7 @@ using TEC.ORM.Entities;
 using TEC.ORM.Mapping;
 using TEC.ORM.Paging;
 using TEC.ORM.Specifications;
+using TEC.ORM.SqlServer.Auditing;
 using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Diagnostics;
 using TEC.ORM.SqlServer.SoftDelete;
@@ -24,8 +27,9 @@ namespace TEC.ORM.SqlServer;
 /// <para>Leituras sem rastreamento (<c>AsNoTracking</c>). Escritas gravadas na hora (<c>SaveChangesAsync</c>); se a gravação
 /// falhar, a entidade é desanexada do contexto, para não ser regravada pela próxima operação do mesmo escopo.</para>
 /// <para>Segurança: toda consulta é LINQ (parâmetros gerados pelo EF); a ordenação por texto (<see cref="PageRequest.SortBy"/>)
-/// só aceita propriedades escalares mapeadas e permitidas (<see cref="SortableAttribute"/>; nunca sombra, exclusão lógica ou
-/// token de concorrência).</para>
+/// só aceita propriedades escalares mapeadas e permitidas (<see cref="SortableAttribute"/>; sem nenhuma marcada, só a chave e as
+/// datas de auditoria, salvo <see cref="OrmOptions.AllowUnmarkedSortBy"/>; nunca sombra, exclusão lógica ou token de
+/// concorrência).</para>
 /// <para>O construtor exige o filtro global de exclusão lógica no modelo (<c>AddTecOrm</c>, <see cref="SoftDelete.OrmDbContext"/>
 /// ou <c>AddTecOrmConventions</c>): sem ele, registros excluídos voltariam nas consultas, então a ausência é
 /// <see cref="InvalidOperationException"/>.</para>
@@ -38,6 +42,11 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     where TKey : notnull, IEquatable<TKey>
 {
     private static readonly string Target = typeof(TEntity).Name;
+
+    private static readonly bool IsAuditable = typeof(IAuditable).IsAssignableFrom(typeof(TEntity));
+
+    /// <summary>Listas brancas da ordenação por texto, calculadas uma vez por modelo (o modelo de um contexto é imutável).</summary>
+    private static readonly ConditionalWeakTable<IModel, SortWhitelist> SortWhitelists = new();
 
     /// <summary>Contexto do EF Core.</summary>
     protected DbContext Context { get; } = SoftDeleteQueryFilterConvention.EnsureFilter(context ?? throw new ArgumentNullException(nameof(context)), typeof(TEntity));
@@ -54,10 +63,18 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
             if (entity is null)
                 return OrmErrors.InvalidInput(nameof(entity), "A entidade é obrigatória.");
 
+            var pending = Context.ChangeTracker.Entries().Where(e => e.State == EntityState.Added).Select(e => e.Entity)
+                .ToHashSet(ReferenceEqualityComparer.Instance);
             var entry = Set.Add(entity);
-            // Criação nunca nasce excluída, mesmo que o objeto venha com os campos preenchidos
-            entry.Property(nameof(ISoftDelete.IsDeleted)).CurrentValue = false;
-            entry.Property(nameof(ISoftDelete.DeletedAt)).CurrentValue = null;
+            // Criação nunca nasce excluída, mesmo que o objeto venha com os campos preenchidos: vale para a raiz e para os
+            // dependentes novos do grafo, que o Add também insere (ex.: itens de uma coleção desserializados com IsDeleted)
+            foreach (var added in Context.ChangeTracker.Entries<ISoftDelete>())
+            {
+                if (added.State != EntityState.Added || pending.Contains(added.Entity))
+                    continue;
+                added.Property(nameof(ISoftDelete.IsDeleted)).CurrentValue = false;
+                added.Property(nameof(ISoftDelete.DeletedAt)).CurrentValue = null;
+            }
             await SaveAsync(entry, token).ConfigureAwait(false);
             operation.Identifier = entity.Id;
             return entity;
@@ -90,6 +107,10 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// <c>ORM_CONCORRENCIA</c> com a entidade rastreada ou desanexada.</para>
     /// <para>Se a instância recebida já é a rastreada, vale o rastreador: o salvamento é o do contexto (o que mais estiver
     /// alterado nele também é gravado) e os tokens esperados são os carregados.</para>
+    /// <para>O <c>UPDATE</c> também confere <c>IsDeleted = 0</c> (token de concorrência da convenção): uma exclusão lógica
+    /// concorrente entre a verificação de existência e a gravação resulta em <c>ORM_CONCORRENCIA</c>, sem alterar o registro
+    /// excluído. Em entidade <see cref="IAuditable"/>, os campos de criação e de exclusão devolvidos são os do banco (lidos na
+    /// verificação de existência), e não os enviados pelo chamador.</para>
     /// </remarks>
     public virtual Task<Result<TEntity>> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
@@ -99,8 +120,17 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
             if (entity is null)
                 return OrmErrors.InvalidInput(nameof(entity), "A entidade é obrigatória.");
 
-            // Não existe ou já foi excluído: não atualiza (e não "ressuscita" o registro)
-            if (!await Set.AnyAsync(HasId(entity.Id), token).ConfigureAwait(false))
+            // Não existe ou já foi excluído: não atualiza (e não "ressuscita" o registro). Entidade auditada: a mesma leitura traz
+            // a autoria gravada, que o UPDATE não altera e o objeto devolvido deve refletir
+            AuditSnapshot? audit = null;
+            if (IsAuditable)
+            {
+                audit = await Set.AsNoTracking().Where(HasId(entity.Id)).Select(AuditSnapshot.Projection).FirstOrDefaultAsync(token)
+                    .ConfigureAwait(false);
+                if (audit is null)
+                    return OrmErrors.NotFound();
+            }
+            else if (!await Set.AnyAsync(HasId(entity.Id), token).ConfigureAwait(false))
                 return OrmErrors.NotFound();
 
             var tracked = Set.Local.FindEntry(entity.Id);
@@ -114,6 +144,7 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
 
             // Exclusão lógica só pelo DeleteAsync
             ProtectSoftDeleteColumns(entry);
+            audit?.ApplyTo(entry);
             await SaveAsync(entry, token).ConfigureAwait(false);
             return entry.Entity;
         }, cancellationToken);
@@ -163,6 +194,9 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// é desligado; os demais filtros globais da aplicação continuam valendo. Se a instância estiver rastreada no contexto,
     /// ela é desanexada (com os <i>owned</i>); dependentes rastreados removidos pela cascata do banco não são desanexados.</para>
     /// <para>Exige um provedor relacional (o InMemory não executa <c>ExecuteDelete</c>) e não suporta herança TPT/TPC.</para>
+    /// <para>Auditoria: o log 3007 registra o autor (<c>ICurrentUser</c>) e as linhas removidas. Em entidade
+    /// <see cref="IAuditable"/>, sem identidade autenticada a exclusão é recusada (<see cref="OrmErrors.AuditIdentityRequired"/>),
+    /// como nas demais gravações.</para>
     /// </remarks>
     [HardDelete]
     public virtual Task<Result> HardDeleteAsync(TKey id, CancellationToken cancellationToken = default)
@@ -172,8 +206,11 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
         {
             if (id is null)
                 return OrmErrors.InvalidInput(nameof(id), "O identificador é obrigatório.");
+            if (IdentifyHardDelete(operation) is { } denied)
+                return denied;
 
             int rows = await IncludingSoftDeleted().Where(HasId(id)).ExecuteDeleteAsync(token).ConfigureAwait(false);
+            operation.AffectedRows = rows;
             if (rows == 0)
                 return OrmErrors.NotFound();
 
@@ -186,20 +223,38 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
 
     /// <inheritdoc />
     /// <remarks>
-    /// Um único <c>DELETE ... WHERE</c> no banco, como em <see cref="HardDeleteAsync(TKey, CancellationToken)"/>. Instâncias
-    /// rastreadas no contexto não são desanexadas (o critério pode não ser avaliável em memória): não as regrave.
+    /// Um único <c>DELETE ... WHERE</c> no banco, como em <see cref="HardDeleteAsync(TKey, CancellationToken)"/> (mesma
+    /// auditoria: autor e linhas removidas no log 3007). Instâncias rastreadas no contexto não são desanexadas (o critério pode
+    /// não ser avaliável em memória): não as regrave.
     /// </remarks>
     [HardDelete]
-    public virtual Task<Result<long>> HardDeleteAsync(ISpecification<TEntity> specification, CancellationToken cancellationToken = default) =>
-        runner.ExecuteAsync(HardDelete("hard-delete-many"), async Task<Result<long>> (token) =>
+    public virtual Task<Result<long>> HardDeleteAsync(ISpecification<TEntity> specification, CancellationToken cancellationToken = default)
+    {
+        var operation = HardDelete("hard-delete-many");
+        return runner.ExecuteAsync(operation, async Task<Result<long>> (token) =>
         {
             // Sem critério seria "excluir tudo": recusado
             if (specification?.Criteria is null)
                 return OrmErrors.InvalidInput(nameof(specification), "O critério é obrigatório na exclusão física.");
+            if (IdentifyHardDelete(operation) is { } denied)
+                return denied;
 
             long rows = await IncludingSoftDeleted().Where(specification.Criteria).ExecuteDeleteAsync(token).ConfigureAwait(false);
+            operation.AffectedRows = rows;
             return Result<long>.Success(rows);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Autor da exclusão física para o log de auditoria (3007). Entidade <see cref="IAuditable"/> sem identidade autenticada:
+    /// recusada, como as demais gravações dela (falha fechada); devolve o erro.
+    /// </summary>
+    private Error? IdentifyHardDelete(OrmOperation operation)
+    {
+        var user = OrmIdentity.Current(Context);
+        operation.Actor = user is { IsAuthenticated: true, Id: { Length: > 0 } id } ? id : null;
+        return IsAuditable && operation.Actor is null ? OrmErrors.AuditIdentityRequired() : null;
+    }
 
     /// <inheritdoc />
     public virtual Task<Result<IReadOnlyList<TEntity>>> FindAsync(ISpecification<TEntity> specification,
@@ -267,6 +322,10 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
             return OrmErrors.InvalidInput(nameof(page), "A página é obrigatória.");
         if (page.Validate(options.MaxPageSize) is { } invalid)
             return invalid;
+        // OFFSET profundo: o banco ordena e descarta todas as linhas anteriores a cada chamada (custo escolhido pelo cliente)
+        if (page.Offset > options.MaxPageOffset)
+            return OrmErrors.InvalidInput("page",
+                $"A página pularia mais de {options.MaxPageOffset} itens. Restrinja o filtro ou percorra a lista por chave.");
 
         LambdaExpression? sortBy = null;
         if (page.SortBy is not null)
@@ -396,24 +455,83 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// <c>null</c> se o nome não for permitido (whitelist: o texto do usuário nunca chega ao SQL).
     /// </summary>
     /// <remarks>
-    /// Com ao menos uma propriedade <see cref="SortableAttribute"/> na entidade, só as marcadas são aceitas; sem nenhuma, qualquer
-    /// propriedade escalar mapeada. Sempre recusadas: propriedades sombra, colunas da exclusão lógica e tokens de concorrência.
+    /// Com ao menos uma propriedade <see cref="SortableAttribute"/> na entidade, só as marcadas são aceitas. Sem nenhuma, falha
+    /// fechada: só a chave e as datas de auditoria (<c>CreatedAt</c>, <c>UpdatedAt</c>), ou qualquer propriedade escalar mapeada
+    /// com <see cref="OrmOptions.AllowUnmarkedSortBy"/>. Sempre recusadas: propriedades sombra, colunas da exclusão lógica e
+    /// tokens de concorrência. As listas são calculadas uma vez por modelo.
     /// </remarks>
     private LambdaExpression? SortablePropertySelector(string name)
     {
-        var candidates = Context.Model.FindEntityType(typeof(TEntity))?.GetProperties().Where(IsSortCandidate).ToList();
-        if (candidates is null)
-            return null;
-        if (candidates.Any(IsMarkedSortable))
-            candidates = candidates.Where(IsMarkedSortable).ToList();
+        var whitelist = SortWhitelists.GetValue(Context.Model, static model => new SortWhitelist(model.FindEntityType(typeof(TEntity))));
+        return (options.AllowUnmarkedSortBy ? whitelist.Permissive : whitelist.Strict).GetValueOrDefault(name);
+    }
 
-        var property = candidates.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (property is null)
-            return null;
+    /// <summary>Seletores ordenáveis da entidade num modelo (nome sem diferenciar maiúsculas → <c>e => EF.Property&lt;T&gt;(e, "Nome")</c>).</summary>
+    private sealed class SortWhitelist
+    {
+        public SortWhitelist(IEntityType? entityType)
+        {
+            var candidates = entityType?.GetProperties().Where(IsSortCandidate).ToList() ?? [];
+            if (candidates.Any(IsMarkedSortable))
+            {
+                Strict = Permissive = Build(candidates.Where(IsMarkedSortable));
+                return;
+            }
 
-        var parameter = Expression.Parameter(typeof(TEntity), "e");
-        var access = Expression.Call(typeof(EF), nameof(EF.Property), [property.ClrType], parameter, Expression.Constant(property.Name));
-        return Expression.Lambda(access, parameter);
+            Permissive = Build(candidates);
+            var key = entityType?.FindPrimaryKey()?.Properties ?? [];
+            Strict = Build(candidates.Where(p => key.Contains(p) ||
+                (IsAuditable && p.Name is nameof(IAuditable.CreatedAt) or nameof(IAuditable.UpdatedAt))));
+        }
+
+        /// <summary>Sem <see cref="SortableAttribute"/>: chave e datas de auditoria (padrão).</summary>
+        public FrozenDictionary<string, LambdaExpression> Strict { get; }
+
+        /// <summary>Sem <see cref="SortableAttribute"/>: qualquer candidata (<see cref="OrmOptions.AllowUnmarkedSortBy"/>).</summary>
+        public FrozenDictionary<string, LambdaExpression> Permissive { get; }
+
+        private static FrozenDictionary<string, LambdaExpression> Build(IEnumerable<IProperty> properties) =>
+            properties.ToFrozenDictionary(p => p.Name, Selector, StringComparer.OrdinalIgnoreCase);
+
+        private static LambdaExpression Selector(IProperty property)
+        {
+            var parameter = Expression.Parameter(typeof(TEntity), "e");
+            var access = Expression.Call(typeof(EF), nameof(EF.Property), [property.ClrType], parameter, Expression.Constant(property.Name));
+            return Expression.Lambda(access, parameter);
+        }
+    }
+
+    /// <summary>
+    /// Autoria gravada de uma entidade <see cref="IAuditable"/> (campos que o <c>UPDATE</c> nunca altera), lida junto com a
+    /// verificação de existência do <see cref="UpdateAsync"/>.
+    /// </summary>
+    private sealed record AuditSnapshot(DateTimeOffset CreatedAt, string? CreatedBy, string? CreatedByTenant, string? DeletedBy,
+        string? DeletedByTenant)
+    {
+        public static readonly Expression<Func<TEntity, AuditSnapshot>> Projection = e => new AuditSnapshot(
+            EF.Property<DateTimeOffset>(e, nameof(IAuditable.CreatedAt)),
+            EF.Property<string?>(e, nameof(IAuditable.CreatedBy)),
+            EF.Property<string?>(e, nameof(IAuditable.CreatedByTenant)),
+            EF.Property<string?>(e, nameof(IAuditable.DeletedBy)),
+            EF.Property<string?>(e, nameof(IAuditable.DeletedByTenant)));
+
+        /// <summary>Valor gravado como original e atual: fora do <c>UPDATE</c> e refletido no objeto devolvido.</summary>
+        public void ApplyTo(EntityEntry<TEntity> entry)
+        {
+            Set(entry, nameof(IAuditable.CreatedAt), CreatedAt);
+            Set(entry, nameof(IAuditable.CreatedBy), CreatedBy);
+            Set(entry, nameof(IAuditable.CreatedByTenant), CreatedByTenant);
+            Set(entry, nameof(IAuditable.DeletedBy), DeletedBy);
+            Set(entry, nameof(IAuditable.DeletedByTenant), DeletedByTenant);
+        }
+
+        private static void Set(EntityEntry<TEntity> entry, string name, object? value)
+        {
+            var property = entry.Property(name);
+            property.OriginalValue = value;
+            property.CurrentValue = value;
+            property.IsModified = false;
+        }
     }
 
     /// <summary>Propriedades que nunca entram na ordenação por texto: sombra, exclusão lógica e tokens de concorrência.</summary>

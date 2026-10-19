@@ -154,6 +154,33 @@ public class LeakageTests
 
     [Test]
     [Category(TestCategories.Integration)]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ColumnTextReadAsNumber_ColumnValue_NeverLeaks(bool dto)
+    {
+        // Revisão 2026-10-19 (SEG-01): a conversão é feita no cliente (Convert.ChangeType / desserializador do Dapper), e a
+        // FormatException/DataException traz o valor lido da coluna na mensagem
+        string secret = NewSecret();
+        var logs = new CapturingLoggerProvider();
+        string name = "vazamento.coluna-" + Guid.NewGuid().ToString("N")[..8];
+        using var telemetry = new OrmTelemetryListener(name);
+
+        await WithScopeAsync(logs, async services =>
+        {
+            var executor = services.GetRequiredService<IOrmQueryExecutor>();
+            var query = SqlQuery.Interpolated(name, $"SELECT CAST({secret} AS varchar(40)) AS Value");
+            Result result = dto ? await executor.QueryAsync<NumberRow>(query) : await executor.QueryAsync<long>(query);
+
+            await Assert.That(result.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
+            await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3005)).IsTrue();
+            await AssertNoSecretAsync(secret, result, logs, telemetry);
+        });
+    }
+
+    private sealed record NumberRow(long Value);
+
+    [Test]
+    [Category(TestCategories.Integration)]
     public async Task InvalidObject_SqlText_NeverLeaks()
     {
         // SQL Server 208: "Invalid object name '<nome>'" (o texto do SQL também nunca é registrado)

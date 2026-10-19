@@ -1,9 +1,3 @@
-| Métrica | `orm.circuit.state_changes` (contador) | `orm.connection` (`escrita`/`leitura`), `orm.circuit.state` (`open`, `half_open`, `closed`) |
-| `CircuitStateChangesName` | `"orm.circuit.state_changes"` |
-| 3105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
-| 3106 | Information | ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura. |
-| 3107 | Information | ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões. |
-| 3108 | Debug | ORM: abertura da conexão {Kind} recusada com o circuito aberto. |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › 📈 Observabilidade
 
 # 📈 Observabilidade
@@ -101,6 +95,8 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 | `IsWrite` | `bool` | Escrita: log de auditoria em `Information` |
 | `Identifier` | `object?` | Só no log, conforme `IdentifierLogMode`; pode ser definido durante a operação |
 | `IsHardDelete` | `bool` (`init`) | Sucesso no log 3007 (`Warning`) em vez do 3001 |
+| `Actor` | `string?` | Autor (id do `ICurrentUser`) no log 3007, conforme `IdentifierLogMode`; `-` sem identidade |
+| `AffectedRows` | `long?` | Linhas removidas no log 3007; `-` se não informado |
 | `IsRetryable` | `bool` (`init`) | Pode ser repetida em falha transitória (só leitura fora de transação; ignorado em escritas) |
 
 ### OrmDiagnostics, traces e métricas
@@ -112,11 +108,13 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 | `EntityFrameworkProvider` / `DapperProvider` | `"entityframework"` / `"dapper"` |
 | `DbSystem` | `"microsoft.sql_server"` |
 | `CanceledErrorType` | `"canceled"` |
+| `CircuitStateChangesName` | `"orm.circuit.state_changes"` |
 
 | Sinal | Nome | Atributos |
 |---|---|---|
 | Trace | `Activity` `Client` `"{operação} {alvo}"` (ex.: `create Customer`, `query reports.sales`) | `db.system.name`, `orm.provider`, `orm.operation`, `orm.target`, `orm.success`, `orm.retries` (só com nova tentativa) e, em falha, `error.type` + status `Error` |
 | Métrica | `orm.operation.duration` (histograma, `s`) | `db.system.name`, `orm.provider`, `orm.operation`, `orm.target` e, em falha, `error.type` (código de `OrmErrors` ou `canceled`) |
+| Métrica | `orm.circuit.state_changes` (contador) | `orm.connection` (`escrita`/`leitura`), `orm.circuit.state` (`open`, `half_open`, `closed`) |
 
 A contagem por operação e resultado vem do próprio histograma (ex.: taxa de erro por entidade = contagem com
 `error.type` ÷ total, agrupado por `orm.target`).
@@ -124,7 +122,9 @@ A contagem por operação e resultado vem do próprio histograma (ex.: taxa de e
 ### Eventos de log
 
 Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostics.OrmOperationRunner`,
-`TEC.ORM.SqlServer.Security.OrmConnectionSecurity` e `TEC.ORM.SqlServer.HealthChecks.OrmHealthCheck`.
+`TEC.ORM.SqlServer.Security.OrmConnectionSecurity` (inclusive o circuito das conexões abertas por ela),
+`TEC.ORM.SqlServer.Security.SecretConnectionInterceptor` (circuito da conexão do EF Core),
+`TEC.ORM.SqlServer.HealthChecks.OrmHealthCheck` e `TEC.ORM.SqlServer.Idempotency.IdempotencyCleanupService` (3200–3201).
 
 | Evento | Nível | Mensagem (modelo) |
 |---|---|---|
@@ -133,17 +133,21 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 | 3002 | Information | ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
 | 3003 | Warning | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
 | 3004 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, SQL {SqlErrorNumber}) em {ElapsedMilliseconds} ms. |
-| 3005 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}. *(com a exceção)* |
+| 3005 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}. *(com a exceção; as de conversão de valor, sem a mensagem)* |
 | 3006 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) cancelada após {ElapsedMilliseconds} ms. |
-| 3007 | Warning | Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) removeu os registros de fato do banco (irreversível) em {ElapsedMilliseconds} ms. |
+| 3007 | Warning | Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) por {Actor} removeu {Rows} linha(s) de fato do banco (irreversível) em {ElapsedMilliseconds} ms. |
 | 3008 | Warning | ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (SQL {SqlErrorNumber}); nova tentativa {Retry} de {MaxRetries}. |
 | 3100 | Error | ORM: segredo da conexão {Kind} indisponível no cofre: {ErrorCode}. |
 | 3101 | Error | ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}. |
 | 3102 | Error | ORM: falha ao abrir a conexão {Kind} (SQL {SqlErrorNumber}). |
 | 3103 | Warning | ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento). |
 | 3104 | Warning | Health check do ORM falhou: {ErrorCode}. |
-| 3200 | Debug | Limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}. |
-| 3201 | Warning | Falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo. |
+| 3105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
+| 3106 | Information | ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura. |
+| 3107 | Information | ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões. |
+| 3108 | Debug | ORM: abertura da conexão {Kind} recusada com o circuito aberto. |
+| 3200 | Debug | ORM: limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}. |
+| 3201 | Warning | ORM: falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo. *(com a exceção)* |
 
 `{Kind}` é `escrita` ou `leitura`. Falhas esperadas de leitura saem em 3002; de escrita, em 3003; de infraestrutura
 (`ExternalService`), em 3004. `{Identifier}` segue o `IdentifierLogMode` ([⚙️ Opções](opcoes.md#identifierlogmode)).
@@ -154,7 +158,7 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 
 | Configuração | Padrão | Descrição |
 |---|---|---|
-| `OrmOptions.IdentifierLogMode` | `Plain` | Identificador no log |
+| `OrmOptions.IdentifierLogMode` | `Auto` | Identificador (e autor da exclusão física) no log |
 | `Logging:LogLevel:TEC.ORM.SqlServer.Diagnostics.OrmOperationRunner` | do host | Mantenha `Information` em produção (auditoria das escritas) |
 
 ```json
@@ -169,7 +173,7 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 |---|---|
 | Qualquer código de `OrmErrors` | `error.type` (métrica e trace) e `{ErrorCode}` (log) |
 | `canceled` | `error.type` de operação cancelada (log 3006) |
-| Exceção inesperada | `ORM_FALHA` + log 3005 com a pilha (ex.: navegação inexistente no `Include`) |
+| Exceção inesperada | `ORM_FALHA` + log 3005 com a pilha (ex.: navegação inexistente no `Include`); falha de conversão de valor (`FormatException`, `InvalidCastException`, `OverflowException`, `DataException` do Dapper) vai sem a mensagem, que traria o valor da coluna |
 
 ---
 
@@ -181,7 +185,9 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 
 - Exceções de banco não têm a mensagem registrada (pode trazer o valor de uma chave duplicada): só tipo, número do erro e
   código. Os eventos de erro do próprio EF Core que repetiriam essa mensagem ficam desligados pelo `AddTecOrm`.
-- No modo `Plain`, caracteres de controle, de formatação (U+202E) e separadores U+2028/U+2029 do identificador viram `?`:
+- Exceções de conversão (ex.: coluna texto lida como número) também não têm a mensagem registrada: o .NET 8+ e o Dapper
+  repetem nela o valor lido. Ficam os tipos da cadeia e a pilha.
+- Em claro (`Plain`, ou `Auto` com chave técnica), caracteres de controle, de formatação (U+202E) e separadores U+2028/U+2029 do identificador viram `?`:
   sem injeção de linhas nem falsificação visual no log.
 
 ---

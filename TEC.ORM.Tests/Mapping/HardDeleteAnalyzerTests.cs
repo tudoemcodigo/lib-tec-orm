@@ -81,6 +81,22 @@ public class HardDeleteAnalyzerTests
     }
 
     [Test]
+    public async Task Method_group_raises_the_warning()
+    {
+        // Revisão 2026-10-19 (IMP-01): o delegate esconde a chamada, então o alerta vai para onde o método é referenciado
+        var diagnostics = await RunAsync("""
+            public static class Usage
+            {
+                public static Func<int, CancellationToken, Task<Result>> Eraser(IOrmRepository<Customer, int> orm) => orm.HardDeleteAsync;
+                public static Task<Result> Delete(IOrmRepository<Customer, int> orm) { Func<int, CancellationToken, Task<Result>> soft = orm.DeleteAsync; return soft(1, default); }
+            }
+            """);
+
+        var diagnostic = diagnostics.Single();
+        await Assert.That(diagnostic.GetMessage()).Contains("IOrmRepository.HardDeleteAsync");
+    }
+
+    [Test]
     public async Task Soft_delete_does_not_raise_the_warning()
     {
         var diagnostics = await RunAsync("""

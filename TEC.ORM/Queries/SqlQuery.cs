@@ -21,6 +21,14 @@ namespace TEC.ORM.Queries;
 /// <see cref="Name"/> identifica a consulta em logs, traces e métricas (baixa cardinalidade, ex.: <c>relatorio.vendas-por-cliente</c>).
 /// O texto do SQL e os valores dos parâmetros nunca são registrados; <see cref="ToString"/> também os omite.
 /// </para>
+/// <para>
+/// Listas (<c>IEnumerable</c>, exceto <c>string</c> e <c>byte[]</c>) viram um parâmetro por item: escreva <c>IN {ids}</c>, sem
+/// parênteses. Cada item conta no limite <see cref="MaxParameters"/> (o SQL Server aceita 2.100 por comando).
+/// </para>
+/// <para>
+/// Num <c>LIKE</c>, um <c>%</c> ou <c>_</c> no valor é curinga: para buscar o texto literal, use <see cref="EscapeLike"/> e
+/// <c>ESCAPE '\'</c> (o valor continua parametrizado; não é injeção, mas muda o resultado e o custo da consulta).
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -28,6 +36,11 @@ namespace TEC.ORM.Queries;
 ///     $"SELECT p.Id, p.Valor, c.Nome FROM Pedidos p JOIN Clientes c ON c.Id = p.ClienteId WHERE c.Id = {clienteId}");
 ///
 /// var totais = SqlQuery.Create("vendas.totais", "SELECT SUM(Valor) FROM Pedidos WHERE CriadoEm >= @Inicio", new { Inicio = inicio });
+///
+/// var varios = SqlQuery.Interpolated("pedidos.por-ids", $"SELECT Id, Valor FROM Pedidos WHERE Id IN {ids}");
+///
+/// var porPrefixo = SqlQuery.Interpolated("clientes.por-prefixo",
+///     $"SELECT Id, Nome FROM Clientes WHERE Nome LIKE {SqlQuery.EscapeLike(prefixo) + "%"} ESCAPE '\'");
 /// </code>
 /// </example>
 [DebuggerDisplay("{ToString(),nq}")]
@@ -62,7 +75,7 @@ public sealed partial class SqlQuery
         Guard.NotNull(sql);
 
         var arguments = sql.GetArguments();
-        Guard.Against(arguments.Length > MaxParameters, $"A consulta excede {MaxParameters} parâmetros.", nameof(sql));
+        Guard.Against(CountParameters(arguments) > MaxParameters, $"A consulta excede {MaxParameters} parâmetros.", nameof(sql));
         var placeholders = new object[arguments.Length];
         var parameters = new Dictionary<string, object?>(arguments.Length, StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < arguments.Length; i++)
@@ -104,7 +117,8 @@ public sealed partial class SqlQuery
         var copy = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (parameters is not null)
         {
-            Guard.Against(parameters.Count > MaxParameters, $"A consulta excede {MaxParameters} parâmetros.", nameof(parameters));
+            Guard.Against(parameters.Count > MaxParameters || CountParameters(parameters.Values) > MaxParameters,
+                $"A consulta excede {MaxParameters} parâmetros.", nameof(parameters));
             foreach (var (key, value) in parameters)
             {
                 Guard.Against(key is null || !ParameterNamePattern().IsMatch(key), "Nome de parâmetro inválido.", nameof(parameters));
@@ -112,6 +126,60 @@ public sealed partial class SqlQuery
             }
         }
         return new SqlQuery(name, ValidateSql(sql), new ReadOnlyDictionary<string, object?>(copy));
+    }
+
+    /// <summary>
+    /// Escapa os curingas de <c>LIKE</c> (<c>%</c>, <c>_</c>, <c>[</c>) e o próprio escape (<c>\</c>), para buscar o texto
+    /// literal. Use com <c>ESCAPE '\'</c> no SQL e acrescente os curingas desejados depois (ex.: <c>EscapeLike(prefixo) + "%"</c>).
+    /// </summary>
+    /// <param name="value">Texto vindo do usuário.</param>
+    /// <returns>O texto com os curingas escapados.</returns>
+    public static string EscapeLike(string value)
+    {
+        Guard.NotNull(value);
+        return value.Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal)
+            .Replace("[", @"\[", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Parâmetros que o comando terá de fato: lista (<c>IEnumerable</c> exceto <c>string</c> e <c>byte[]</c>) é expandida pelo
+    /// Dapper em um parâmetro por item (vazia: um).
+    /// </summary>
+    private static long CountParameters(IEnumerable<object?> values)
+    {
+        long count = 0;
+        foreach (var value in values)
+        {
+            count += value switch
+            {
+                null or string or byte[] => 1,
+                System.Collections.ICollection collection => Math.Max(1, collection.Count),
+                System.Collections.IEnumerable sequence => Math.Max(1, CountItems(sequence)),
+                _ => 1
+            };
+            if (count > MaxParameters)
+                break;
+        }
+        return count;
+    }
+
+    /// <summary>Itens de uma sequência sem <c>Count</c>, contando só até passar do limite.</summary>
+    private static long CountItems(System.Collections.IEnumerable sequence)
+    {
+        long count = 0;
+        var enumerator = sequence.GetEnumerator();
+        try
+        {
+            while (count <= MaxParameters && enumerator.MoveNext())
+                count++;
+        }
+        finally
+        {
+            (enumerator as IDisposable)?.Dispose();
+        }
+        return count;
     }
 
     /// <inheritdoc />

@@ -1,5 +1,3 @@
-| `CircuitBreaker` nulo ou com valor fora do limite (ligado) | `InvalidConfigurationException("TecOrm:CircuitBreaker:<Opção>")` |
-| `CircuitBreaker` | `OrmCircuitBreakerOptions` | ligado (50%, 10 aberturas, 30 s, 30 s) | ver [🔁 Resiliência](resiliencia.md#circuit-breaker-da-conexão) | Circuit breaker da abertura de conexões: `Enabled`, `FailureRatio` (> 0 e ≤ 1), `MinimumThroughput` (2 a 10.000), `SamplingDuration` e `BreakDuration` (0,5 s a 1 h) |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › ⚙️ Opções
 
 # ⚙️ Opções
@@ -96,12 +94,16 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `AllowTrustServerCertificate` | `bool` | `false` | — | Aceita `TrustServerCertificate=True` no segredo (só desenvolvimento; log 3103) |
 | `CommandTimeoutSeconds` | `int` | `30` (`DefaultCommandTimeoutSeconds`) | 1 a 600 | Tempo limite dos comandos (EF Core e Dapper) |
 | `MaxPageSize` | `int` | `100` | 1 a 10.000 | Itens máximos por página |
+| `MaxPageOffset` | `int` | `10000` | 0 a 100.000.000 | Itens máximos pulados pela listagem (`(Page - 1) * PageSize`); acima, `ORM_ENTRADA_INVALIDA` sem ir ao banco (o `OFFSET` profundo ordena e descarta as linhas anteriores a cada chamada) |
+| `AllowUnmarkedSortBy` | `bool` | `false` | — | Entidade **sem** `[Sortable]`: `false` aceita no `SortBy` só a chave e `CreatedAt`/`UpdatedAt`; `true` aceita qualquer propriedade escalar mapeada (comportamento até a 0.1.0). Com `[Sortable]`, só as marcadas, nos dois casos |
 | `MaxFindResults` | `int` | `1000` | 1 a 100.000 | Registros máximos do `FindAsync` |
 | `MaxQueryRows` | `int` | `10000` | 1 a 1.000.000 | Linhas máximas de uma leitura complexa; acima, `ORM_LIMITE_EXCEDIDO` e o comando é cancelado no servidor |
+| `MaxSoftDeletePropagation` | `int` | `10000` | 1 a 1.000.000 | Dependentes excluídos logicamente por propagação num salvamento; acima, `ORM_LIMITE_EXCEDIDO` sem gravar nada ([🗑️ Exclusão lógica](exclusao-logica.md)) |
 | `TransientRetryCount` | `int` | `2` | 0 a 5 | Novas tentativas em falha transitória, **só em leituras fora de transação** (`0` desliga) |
 | `TransientRetryDelay` | `TimeSpan` | `200 ms` | 10 ms a 10 s | Espera antes da primeira nova tentativa; dobra a cada tentativa, com até 50% de variação aleatória |
 | `EnforceReadOnlyQueries` | `bool` | `true` | — | Verificação de somente leitura nas leituras complexas |
-| `IdentifierLogMode` | `IdentifierLogMode` | `Plain` | valor definido | Como o identificador aparece nos logs de auditoria |
+| `IdentifierLogMode` | `IdentifierLogMode` | `Auto` | valor definido | Como o identificador (e o autor da exclusão física) aparece nos logs de auditoria |
+| `CircuitBreaker` | `OrmCircuitBreakerOptions` | ligado (50%, 10 aberturas, 30 s, 30 s) | ver [🔁 Resiliência](resiliencia.md#circuit-breaker-da-conexão) | Circuit breaker da abertura de conexões: `Enabled`, `FailureRatio` (> 0 e ≤ 1), `MinimumThroughput` (2 a 10.000), `SamplingDuration` e `BreakDuration` (0,5 s a 1 h) |
 | `Validate()` | `void` | — | — | Valida tudo; lança `InvalidConfigurationException("TecOrm:<Opção>")` |
 
 ### IdentifierLogMode
@@ -111,6 +113,7 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `Plain` (0) | Valor como está, até 64 caracteres (mais `…`), com caracteres de controle, de formatação (ex.: inversão bidirecional U+202E) e separadores de linha/parágrafo (U+2028/U+2029) trocados por `?` | Chaves técnicas: `int`, `long`, `Guid` |
 | `Hashed` (1) | `<N caracteres, hmac:xxxxxxxxxxxx>`: tamanho e prefixo do HMAC-SHA256 com chave aleatória **do processo** (`SensitiveDataMasker.DescribeUntrusted` do TEC.Core) | Chave que é dado pessoal (CPF, e-mail): correlaciona no mesmo processo sem expor |
 | `Omitted` (2) | `-` | Nem o tamanho deve aparecer |
+| `Auto` (3, **padrão**) | Pelo tipo do valor: inteiros e `Guid` como em `Plain`; `string` e demais tipos como em `Hashed`. O autor da exclusão física (texto) sai em claro só se for um `Guid` ou um número | Padrão seguro: chave técnica legível, chave natural (e-mail, CPF) nunca em claro |
 
 > [!NOTE]
 > Com `Hashed`, o mesmo identificador gera hashes diferentes em processos diferentes (a chave muda a cada reinício). Em
@@ -133,8 +136,10 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `ConnectionSecretName` vazio | `InvalidConfigurationException("TecOrm:ConnectionSecretName")` |
 | `ReadOnlyConnectionSecretName` informado em branco | `InvalidConfigurationException("TecOrm:ReadOnlyConnectionSecretName")` |
 | `ApplicationName` vazio ou com mais de 128 caracteres | `InvalidConfigurationException("TecOrm:ApplicationName")` |
-| `CommandTimeoutSeconds`, `MaxPageSize`, `MaxFindResults`, `MaxQueryRows`, `TransientRetryCount`, `TransientRetryDelay` fora do limite | `InvalidConfigurationException("TecOrm:<Opção>")` |
+| `CommandTimeoutSeconds`, `MaxPageSize`, `MaxPageOffset`, `MaxFindResults`, `MaxQueryRows`, `MaxSoftDeletePropagation`, `TransientRetryCount`, `TransientRetryDelay` fora do limite | `InvalidConfigurationException("TecOrm:<Opção>")` |
 | `IdentifierLogMode` não definido no enum | `InvalidConfigurationException("TecOrm:IdentifierLogMode")` |
+| `CircuitBreaker` nulo | `InvalidConfigurationException("TecOrm:CircuitBreaker")` |
+| Opção do `CircuitBreaker` fora do limite (com `Enabled = true`) | `InvalidConfigurationException("TecOrm:CircuitBreaker:<Opção>")` |
 | `AddTecOrm` duas vezes para o mesmo contexto | `InvalidOperationException` |
 
 ---
@@ -146,7 +151,7 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 > pertence ao cofre; as opções só têm o **nome** do segredo.
 
 - `AllowTrustServerCertificate = true` só em desenvolvimento (SQL Server local com certificado autoassinado).
-- `IdentifierLogMode.Hashed` ou `Omitted` quando a chave for dado pessoal.
+- `IdentifierLogMode`: o padrão `Auto` já usa HMAC para chaves texto; `Hashed` ou `Omitted` para esconder também as chaves técnicas.
 
 ---
 

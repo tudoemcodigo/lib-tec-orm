@@ -1,4 +1,5 @@
 using TEC.ORM.Entities;
+using TEC.ORM.Paging;
 
 namespace TEC.ORM.Tests.Database.CodeFirst;
 
@@ -23,8 +24,11 @@ public sealed class Product : Entity<int>
 
 public sealed class Customer : Entity<Guid>
 {
+    // Ordenação por texto (PageRequest.SortBy) só pelas marcadas
+    [Sortable]
     public string Name { get; set; } = string.Empty;
 
+    [Sortable]
     public string Email { get; set; } = string.Empty;
 
     public bool Active { get; set; } = true;

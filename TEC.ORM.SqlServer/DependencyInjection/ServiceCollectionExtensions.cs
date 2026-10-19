@@ -89,16 +89,22 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IOrmOperationRunner, OrmOperationRunner>();
         services.TryAddSingleton(provider => CreateConnectionInterceptor(provider, provider.GetRequiredService<OrmOptions>(),
             provider.GetRequiredService<IOrmConnectionSecurity>()));
-        services.TryAddSingleton<SoftDeleteInterceptor>();
+        services.TryAddSingleton(provider => new SoftDeleteInterceptor(provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<OrmOptions>().MaxSoftDeletePropagation));
         services.TryAddSingleton<AuditInterceptor>();
 
         services.AddKeyedSingleton<OrmOptions>(typeof(TContext), options);
         services.AddKeyedSingleton<SecretConnectionInterceptor>(typeof(TContext), (provider, _) => primary
             ? provider.GetRequiredService<SecretConnectionInterceptor>()
             : CreateConnectionInterceptor(provider, options, SecurityFor(provider, options)));
+        // Teto da propagação da exclusão lógica (OrmOptions.MaxSoftDeletePropagation) de cada contexto
+        services.AddKeyedSingleton<SoftDeleteInterceptor>(typeof(TContext), (provider, _) => primary
+            ? provider.GetRequiredService<SoftDeleteInterceptor>()
+            : new SoftDeleteInterceptor(provider.GetRequiredService<TimeProvider>(), options.MaxSoftDeletePropagation));
 
         services.AddDbContext<TContext>((provider, builder) => ConfigureDbContext(provider, builder, options,
-            provider.GetRequiredKeyedService<SecretConnectionInterceptor>(typeof(TContext)), sqlServer,
+            provider.GetRequiredKeyedService<SecretConnectionInterceptor>(typeof(TContext)),
+            provider.GetRequiredKeyedService<SoftDeleteInterceptor>(typeof(TContext)), sqlServer,
             // Opções do AddDbContext são scoped: provider é o escopo do contexto
             () => provider.GetService<ICurrentUser>()));
 
@@ -133,7 +139,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(provider);
         var scopes = provider.GetRequiredService<IServiceScopeFactory>();
         ConfigureDbContext(provider, builder, provider.GetRequiredService<OrmOptions>(), provider.GetRequiredService<SecretConnectionInterceptor>(),
-            sqlServer, () => SnapshotCurrentUser(scopes));
+            provider.GetRequiredService<SoftDeleteInterceptor>(), sqlServer, () => SnapshotCurrentUser(scopes));
         return builder;
     }
 
@@ -171,7 +177,8 @@ public static class ServiceCollectionExtensions
             (ILogger?)provider.GetService<ILogger<SecretConnectionInterceptor>>() ?? NullLogger.Instance));
 
     private static void ConfigureDbContext(IServiceProvider provider, DbContextOptionsBuilder builder, OrmOptions options,
-        SecretConnectionInterceptor connection, Action<SqlServerDbContextOptionsBuilder>? sqlServer, Func<ICurrentUser?> currentUser)
+        SecretConnectionInterceptor connection, SoftDeleteInterceptor softDelete, Action<SqlServerDbContextOptionsBuilder>? sqlServer,
+        Func<ICurrentUser?> currentUser)
     {
         // Sem string de conexão aqui: o SecretConnectionInterceptor aplica a do TEC.Vault ao abrir
         builder.UseSqlServer(sql =>
@@ -180,7 +187,7 @@ public static class ServiceCollectionExtensions
             sqlServer?.Invoke(sql);
         });
         // Ordem: a exclusão lógica vira alteração de IsDeleted antes da auditoria preencher DeletedBy
-        builder.AddInterceptors(connection, provider.GetRequiredService<SoftDeleteInterceptor>(), provider.GetRequiredService<AuditInterceptor>());
+        builder.AddInterceptors(connection, softDelete, provider.GetRequiredService<AuditInterceptor>());
         // Identidade da operação (auditoria): o ICurrentUser (TEC.Core), lido a cada uso
         builder.UseTecOrmIdentity(currentUser);
         // Filtro global de exclusão lógica mesmo sem OrmDbContext/AddTecOrmConventions (idempotente com eles)

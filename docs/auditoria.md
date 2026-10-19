@@ -172,7 +172,10 @@ Não há opção em `OrmOptions`. O relógio é o `TimeProvider` registrado e a 
 ## 🛡️ Segurança
 
 - **Falha fechada:** sem identidade, nada é gravado (nunca "anônimo").
-- **Sem autoria forjada:** valores enviados no objeto são ignorados; os campos de criação nunca entram no `UPDATE`.
+- **Sem autoria forjada:** valores enviados no objeto são ignorados; os campos de criação nunca entram no `UPDATE`, e o
+  objeto devolvido pelo `UpdateAsync` traz a autoria gravada (lida junto com a verificação de existência).
+- **Exclusão física:** não passa pelo interceptor (não há `DeletedBy`); o rastro é o log 3007, com o autor (conforme
+  `IdentifierLogMode`) e as linhas removidas. Em entidade `IAuditable`, sem identidade autenticada a exclusão é recusada.
 - **Cópia imutável no `UseTecOrm`:** a auditoria nunca usa um `ICurrentUser` de escopo já descartado.
 
 > [!CAUTION]

@@ -42,17 +42,18 @@
       },
       "TEC.Vault.InMemory": {
         "type": "Direct",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "tbWZoQN8KYfpRHxwZJvZm0GYruC6ptiKXC99hRMJ3V2tWvJRtOQHVllvMuNfB05NWJA8M6ZcrZPXJbJYutU06A==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "mDRPS5W1TMhCH0TMt7F/9bizAqXx8P97LweT4HySKCr4t/ZIBEkWKSvj0itL8GWgTqKkQRutrl3jddXNauZcCQ==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.12",
           "Microsoft.Extensions.Configuration": "10.0.12",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.12",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.12",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
+          "Polly.Core": "8.8.0",
           "TEC.Core": "0.0.1",
-          "TEC.Vault": "0.0.1"
+          "TEC.Vault": "0.1.0"
         }
       },
       "Azure.Core": {
@@ -430,11 +431,6 @@
         "resolved": "4.7.0",
         "contentHash": "VybpaOQQhqE6siHppMktjfGBw1GCwvCqiufqmP8F1nj7fTUNtW35LOEt3UZTEsECfo+ELAl/9o9nJx3U91i7vA=="
       },
-      "System.Security.Cryptography.Pkcs": {
-        "type": "Transitive",
-        "resolved": "9.0.11",
-        "contentHash": "YS2YqtN6fFjlTDIQI+ucjbbrEvwMn796r+VLTQRr/5Oy6g+i+m7nIou83KnJCnAcKna2I+5eVJRks6SoHSpetQ=="
-      },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
         "resolved": "9.0.11",
@@ -455,8 +451,8 @@
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
           "Polly.Core": "[8.8.0, )",
           "TEC.Cqrs": "[0.1.0, )",
-          "TEC.ORM": "[0.1.0, )",
-          "TEC.Vault": "[0.0.1, )"
+          "TEC.ORM": "[0.2.0, )",
+          "TEC.Vault": "[0.1.0, )"
         }
       },
       "Dapper": {
@@ -536,6 +532,12 @@
         "resolved": "8.8.0",
         "contentHash": "TewV9uNFsoRFggoFbTAGFwsMYPuckA+wTIpQPyhLL9BANRPQRENz2S4bwATrB3HBOakN5oKLFIllPiDnVecmJg=="
       },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+      },
       "TEC.Core": {
         "type": "CentralTransitive",
         "requested": "[0.1.0, )",
@@ -557,15 +559,16 @@
       },
       "TEC.Vault": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "TrC/I+FYBD4ZCDpKJ1QTj8/bQr0lphtcW9tLAVWDoGE4vT2h0n/yid5tVHgxnUett+CUCMAJknsX6XQoJXn9dg==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "YD++/bTFq74K51FC+Kd1ZWVHln1FBYwEd8BX0QxEknGugUnztDXRo1x3krbMiBf58tPo18NnS/iJQpP7RcGzfA==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.12",
           "Microsoft.Extensions.Configuration": "10.0.12",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.12",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.12",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
+          "Polly.Core": "8.8.0",
           "TEC.Core": "0.0.1"
         }
       }
@@ -609,17 +612,18 @@
       },
       "TEC.Vault.InMemory": {
         "type": "Direct",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "tbWZoQN8KYfpRHxwZJvZm0GYruC6ptiKXC99hRMJ3V2tWvJRtOQHVllvMuNfB05NWJA8M6ZcrZPXJbJYutU06A==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "mDRPS5W1TMhCH0TMt7F/9bizAqXx8P97LweT4HySKCr4t/ZIBEkWKSvj0itL8GWgTqKkQRutrl3jddXNauZcCQ==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.12",
           "Microsoft.Extensions.Configuration": "10.0.12",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.12",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.12",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
+          "Polly.Core": "8.8.0",
           "TEC.Core": "0.0.1",
-          "TEC.Vault": "0.0.1"
+          "TEC.Vault": "0.1.0"
         }
       },
       "Azure.Core": {
@@ -1049,8 +1053,8 @@
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.12, )",
           "Polly.Core": "[8.8.0, )",
           "TEC.Cqrs": "[0.1.0, )",
-          "TEC.ORM": "[0.1.0, )",
-          "TEC.Vault": "[0.0.1, )"
+          "TEC.ORM": "[0.2.0, )",
+          "TEC.Vault": "[0.1.0, )"
         }
       },
       "Dapper": {
@@ -1151,15 +1155,16 @@
       },
       "TEC.Vault": {
         "type": "CentralTransitive",
-        "requested": "[0.0.1, )",
-        "resolved": "0.0.1",
-        "contentHash": "TrC/I+FYBD4ZCDpKJ1QTj8/bQr0lphtcW9tLAVWDoGE4vT2h0n/yid5tVHgxnUett+CUCMAJknsX6XQoJXn9dg==",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "YD++/bTFq74K51FC+Kd1ZWVHln1FBYwEd8BX0QxEknGugUnztDXRo1x3krbMiBf58tPo18NnS/iJQpP7RcGzfA==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.12",
           "Microsoft.Extensions.Configuration": "10.0.12",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.12",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.12",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
+          "Polly.Core": "8.8.0",
           "TEC.Core": "0.0.1"
         }
       }

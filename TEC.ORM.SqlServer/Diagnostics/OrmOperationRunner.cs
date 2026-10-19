@@ -47,6 +47,15 @@ public sealed class OrmOperation(string provider, string operation, string targe
     /// transação. Ignorado em escritas, que nunca são repetidas.
     /// </summary>
     public bool IsRetryable { get; init; }
+
+    /// <summary>
+    /// Autor da operação (id do <c>ICurrentUser</c>), registrado no log da exclusão física (3007) conforme
+    /// <see cref="IdentifierLogMode"/>. <c>null</c> sem identidade.
+    /// </summary>
+    public string? Actor { get; set; }
+
+    /// <summary>Linhas afetadas, registradas no log da exclusão física (3007). <c>null</c> se não informado.</summary>
+    public long? AffectedRows { get; set; }
 }
 
 /// <summary>
@@ -199,7 +208,8 @@ public sealed class OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOp
         if (errorCode is null)
         {
             if (operation.IsWrite && operation.IsHardDelete)
-                OrmLog.HardDeleteSucceeded(logger, operation.Provider, operation.Operation, operation.Target, identifier, milliseconds);
+                OrmLog.HardDeleteSucceeded(logger, operation.Provider, operation.Operation, operation.Target, identifier,
+                    FormatActor(operation.Actor), operation.AffectedRows?.ToString(CultureInfo.InvariantCulture) ?? "-", milliseconds);
             else if (operation.IsWrite)
                 OrmLog.WriteSucceeded(logger, operation.Provider, operation.Operation, operation.Target, identifier, milliseconds);
             else
@@ -236,9 +246,23 @@ public sealed class OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOp
             return;
         }
 
-        // Falha de programação ou do ORM (ex.: navegação inexistente no Include): o stack trace é necessário para corrigir
-        OrmLog.UnexpectedException(logger, exception, operation.Provider, operation.Operation, operation.Target, identifier,
+        // Falha de programação ou do ORM (ex.: navegação inexistente no Include): o stack trace é necessário para corrigir.
+        // Exceções de conversão trazem o valor lido do banco na mensagem (FormatException do .NET 8+: "The input string '...'";
+        // DataException do Dapper: "Error parsing column N (Nome=valor - tipo)"): vão para o log sem mensagem, só tipo e pilha.
+        var logged = IsConversionFailure(exception) ? new OrmRedactedException(exception) : exception;
+        OrmLog.UnexpectedException(logger, logged, operation.Provider, operation.Operation, operation.Target, identifier,
             exceptionType, translation.Error.Code);
+    }
+
+    /// <summary>A exceção (ou uma interna) é falha de conversão de valor, cuja mensagem pode repetir o valor da coluna.</summary>
+    private static bool IsConversionFailure(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FormatException or InvalidCastException or OverflowException or System.Data.DataException)
+                return true;
+        }
+        return false;
     }
 
     private static void Complete(Activity? activity, string? errorType, int retries)
@@ -256,8 +280,8 @@ public sealed class OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOp
     }
 
     /// <summary>
-    /// Identificador para o log, conforme <see cref="OrmOptions.IdentifierLogMode"/>. No modo <see cref="IdentifierLogMode.Plain"/>,
-    /// caracteres de controle, de formatação (ex.: inversão bidirecional U+202E) e separadores de linha viram <c>?</c>.
+    /// Identificador para o log, conforme <see cref="OrmOptions.IdentifierLogMode"/>. Em claro (<see cref="IdentifierLogMode.Plain"/>,
+    /// ou <see cref="IdentifierLogMode.Auto"/> com chave técnica), caracteres de controle, de formatação (ex.: inversão bidirecional U+202E) e separadores de linha viram <c>?</c>.
     /// </summary>
     internal string FormatIdentifier(object? identifier)
     {
@@ -268,10 +292,35 @@ public sealed class OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOp
             ? formattable.ToString(null, CultureInfo.InvariantCulture)
             : identifier.ToString() ?? string.Empty;
 
-        // Tamanho + HMAC com chave aleatória do processo (TEC.Core): correlaciona sem expor o valor
-        if (options.IdentifierLogMode == IdentifierLogMode.Hashed)
-            return SensitiveDataMasker.DescribeUntrusted(text);
+        // Auto: chave técnica em claro; texto e demais tipos (chave natural, possivelmente dado pessoal) com HMAC
+        bool hashed = options.IdentifierLogMode == IdentifierLogMode.Hashed ||
+                      (options.IdentifierLogMode == IdentifierLogMode.Auto && !IsTechnicalKey(identifier));
+        return hashed ? Hash(text) : Sanitize(text);
+    }
 
+    /// <summary>
+    /// Autor da exclusão física para o log, conforme <see cref="OrmOptions.IdentifierLogMode"/>; em
+    /// <see cref="IdentifierLogMode.Auto"/>, em claro só se for um <c>Guid</c> ou um número (id técnico), senão com HMAC.
+    /// </summary>
+    internal string FormatActor(string? actor)
+    {
+        if (string.IsNullOrEmpty(actor) || options.IdentifierLogMode == IdentifierLogMode.Omitted)
+            return "-";
+        bool hashed = options.IdentifierLogMode == IdentifierLogMode.Hashed ||
+                      (options.IdentifierLogMode == IdentifierLogMode.Auto &&
+                       !Guid.TryParse(actor, out _) && !long.TryParse(actor, NumberStyles.None, CultureInfo.InvariantCulture, out _));
+        return hashed ? Hash(actor) : Sanitize(actor);
+    }
+
+    /// <summary>Chave técnica (inteiro ou <c>Guid</c>): não é dado pessoal, vai em claro no modo <see cref="IdentifierLogMode.Auto"/>.</summary>
+    private static bool IsTechnicalKey(object identifier) =>
+        identifier is int or long or short or byte or uint or ulong or ushort or sbyte or Guid;
+
+    /// <summary>Tamanho + HMAC com chave aleatória do processo (TEC.Core): correlaciona sem expor o valor.</summary>
+    private static string Hash(string text) => SensitiveDataMasker.DescribeUntrusted(text);
+
+    private static string Sanitize(string text)
+    {
         // Evita injeção de linhas e falsificação visual no log (identificadores string vindos do usuário)
         if (text.Length > MaxIdentifierLength)
             text = text[..MaxIdentifierLength] + "…";
@@ -285,4 +334,24 @@ public sealed class OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOp
     private static bool IsUnsafeForLog(char c) =>
         char.IsControl(c) || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator
             or UnicodeCategory.ParagraphSeparator;
+}
+
+/// <summary>
+/// Exceção de conversão registrada sem a mensagem (e sem as internas), que pode trazer o valor lido do banco: só os tipos da
+/// cadeia e a pilha da original, suficientes para achar o mapeamento errado.
+/// </summary>
+internal sealed class OrmRedactedException(Exception original) : Exception(Describe(original))
+{
+    private readonly string? _stackTrace = original.StackTrace;
+
+    /// <inheritdoc />
+    public override string? StackTrace => _stackTrace;
+
+    private static string Describe(Exception exception)
+    {
+        var types = new List<string>();
+        for (var current = exception; current is not null; current = current.InnerException)
+            types.Add(current.GetType().FullName ?? current.GetType().Name);
+        return string.Join(" <- ", types) + ": mensagem omitida (pode conter o valor de uma coluna).";
+    }
 }

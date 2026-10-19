@@ -9,12 +9,16 @@
 #    (TEC_TESTES_ORM_SQL_SEGREDO), lido pelos testes pelo TEC.Vault, como em produção. O teardown apaga e purga o segredo.
 set -euo pipefail
 
+# Imagem fixada por digest (a tag pode ser republicada): mcr.microsoft.com/mssql/server:2022-CU27-GDR1-ubuntu-22.04, o que
+# era o 2022-latest em 2026-10-19. O Dependabot não lê scripts: atualizar à mão junto com as dependências pareadas.
+IMAGE="mcr.microsoft.com/mssql/server@sha256:cf8f0ab2ebe61feec2eed2629061a07d247f791c2a8ddda74a4ac9f06a291718"
+
 PASSWORD="Tec1!$(openssl rand -hex 16)"
 echo "::add-mask::$PASSWORD"
 export MSSQL_SA_PASSWORD="$PASSWORD"
 
 docker run -d --name tec-mssql-ci -p 127.0.0.1:1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD \
-  mcr.microsoft.com/mssql/server:2022-latest >/dev/null
+  "$IMAGE" >/dev/null
 
 # Log lido numa variável: com pipefail, "docker logs | grep -q" falha por SIGPIPE quando o grep encerra antes
 ready=0

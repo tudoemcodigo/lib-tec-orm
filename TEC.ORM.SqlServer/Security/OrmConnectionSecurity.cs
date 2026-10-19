@@ -194,7 +194,13 @@ public sealed class OrmConnectionSecurity(ISecretReader secrets, OrmOptions opti
         builder.ApplicationName = options.ApplicationName;
         builder.CommandTimeout = options.CommandTimeoutSeconds;
         if (kind == OrmConnectionKind.ReadOnly)
+        {
             builder.ApplicationIntent = ApplicationIntent.ReadOnly;
+            // Nunca entra no TransactionScope ambiente: junto com a conexão do EF Core (outra string), a transação seria promovida
+            // a distribuída (falha no Linux e, sem ImplicitDistributedTransactions, no Windows). Fica fora de transação, como
+            // documentado, e a nova tentativa das leituras complexas continua segura.
+            builder.Enlist = false;
+        }
 
         return new ProtectedConnectionString(builder.ConnectionString);
     }

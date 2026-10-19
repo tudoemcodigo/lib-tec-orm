@@ -21,13 +21,27 @@ namespace TEC.ORM.SqlServer.SoftDelete;
 /// <para>Idempotente: entidade cujo filtro já testa <c>IsDeleted</c> não recebe outro, então a convenção pode estar registrada
 /// duas vezes (ex.: <see cref="OrmDbContext"/> e <c>AddTecOrm</c>) sem duplicar o filtro.</para>
 /// <para>Use <c>IgnoreQueryFilters()</c> em consultas próprias (ex.: auditoria, restauração) para enxergar os excluídos.</para>
+/// <para><c>IsDeleted</c> também vira token de concorrência: todo <c>UPDATE</c> confere o valor lido (<c>IsDeleted = 0</c> numa
+/// atualização), então uma exclusão lógica concorrente faz a gravação falhar com concorrência em vez de alterar o registro
+/// excluído. Não muda o schema.</para>
+/// <para>O índice criado por <see cref="OrmModelConfigurationExtensions.HasSoftDelete{TEntity}"/> recebe aqui o filtro com o nome
+/// real da coluna (<c>HasColumnName</c> incluído).</para>
 /// </remarks>
 internal sealed class SoftDeleteQueryFilterConvention : IModelFinalizingConvention
 {
+    /// <summary>Marca (temporária, removida pela convenção) do índice criado pelo <c>HasSoftDelete</c>.</summary>
+    internal const string SoftDeleteIndexAnnotation = "TecOrm:SoftDeleteIndex";
+
     public void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
     {
         foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
         {
+            ApplySoftDeleteIndexFilter(entityType);
+            // Exclusão lógica concorrente entre a leitura e o UPDATE: falha de concorrência, não gravação no registro excluído
+            if (!entityType.IsOwned() && typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType) &&
+                entityType.FindDeclaredProperty(nameof(ISoftDelete.IsDeleted)) is { } isDeleted)
+                isDeleted.Builder.IsConcurrencyToken(true);
+
             // Herança (TPH/TPT): o filtro só pode ficar na raiz. Tipos owned seguem o dono.
             if (entityType.BaseType is not null || entityType.IsOwned() || !typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType) ||
                 HasSoftDeleteFilter(entityType))
@@ -53,6 +67,19 @@ internal sealed class SoftDeleteQueryFilterConvention : IModelFinalizingConventi
 #endif
             }
 #pragma warning restore CS0618
+        }
+    }
+
+    /// <summary>Filtro <c>[coluna] = 0</c> do índice do <c>HasSoftDelete</c>, com o nome da coluna do modelo.</summary>
+    private static void ApplySoftDeleteIndexFilter(IConventionEntityType entityType)
+    {
+        foreach (var index in entityType.GetDeclaredIndexes().ToList())
+        {
+            if (index.FindAnnotation(SoftDeleteIndexAnnotation) is null)
+                continue;
+            index.RemoveAnnotation(SoftDeleteIndexAnnotation);
+            if (index.Properties is [var property] && property.GetColumnName() is { } column)
+                index.Builder.HasFilter($"[{column.Replace("]", "]]", StringComparison.Ordinal)}] = 0");
         }
     }
 
@@ -197,14 +224,22 @@ public static class OrmModelConfigurationExtensions
     }
 
     /// <summary>Configura as colunas de exclusão lógica de uma entidade (padrão <c>false</c> e índice filtrado opcional).</summary>
+    /// <remarks>
+    /// O índice (<paramref name="index"/>) cobre só o <c>bit</c> <c>IsDeleted</c> filtrado por <c>IsDeleted = 0</c>, e o SQL
+    /// Server quase nunca o usa: prefira <c>index: false</c> e índices das colunas de busca filtrados por
+    /// <c>[IsDeleted] = 0</c> (ex.: <c>HasIndex(c =&gt; c.Email).IsUnique().HasFilter("[IsDeleted] = 0")</c>). O padrão
+    /// continua <c>true</c> para não gerar uma migration de remoção nos modelos existentes. O filtro usa o nome real da coluna
+    /// (<c>HasColumnName</c>), aplicado pelas convenções do TEC.ORM.
+    /// </remarks>
     public static EntityTypeBuilder<TEntity> HasSoftDelete<TEntity>(this EntityTypeBuilder<TEntity> builder, bool index = true)
         where TEntity : class, ISoftDelete
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Property(e => e.IsDeleted).HasDefaultValue(false);
         builder.Property(e => e.DeletedAt);
+        // Filtro definido pela convenção ao finalizar o modelo: a coluna pode ser renomeada depois desta chamada
         if (index)
-            builder.HasIndex(e => e.IsDeleted).HasFilter("[IsDeleted] = 0");
+            builder.HasIndex(e => e.IsDeleted).HasAnnotation(SoftDeleteQueryFilterConvention.SoftDeleteIndexAnnotation, true);
         return builder;
     }
 }

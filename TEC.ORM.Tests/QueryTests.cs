@@ -138,6 +138,11 @@ public class QueryTests
     [Arguments("SELECT \"a\"\"b\" AS a DELETE FROM Customers")]
     [Arguments("SELECT [sem fechar")]
     [Arguments("SELECT 1 UPDATETEXT Customers.Note @ptr 0 NULL 'x'")]
+    // Revisão 2026-10-19 (SEG-04): dicas de bloqueio que travam escritores
+    [Arguments("SELECT * FROM Customers WITH (UPDLOCK) WHERE Id = 1")]
+    [Arguments("SELECT * FROM Customers WITH (XLOCK, ROWLOCK)")]
+    [Arguments("SELECT * FROM Customers WITH (TABLOCKX)")]
+    [Arguments("SELECT * FROM Customers WITH (HOLDLOCK)")]
     // Regressões do fuzzing diferencial (Security/Fuzzing): comando colado a um literal numérico, que o SQL Server separa
     [Arguments("SELECT 1DROP TABLE Customers")]
     [Arguments("SELECT 1.5DELETE FROM Customers")]

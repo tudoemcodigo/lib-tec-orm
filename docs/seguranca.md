@@ -49,7 +49,7 @@
 | Vazamento da string de conexão (repositório, imagem, `appsettings`, log) | Só no cofre; nunca nas opções; `ToString()` = `***`; `Persist Security Info=False` | `OrmConnectionSecurity`, `AddTecOrm` |
 | Conexão sem criptografia / *man-in-the-middle* | `Encrypt=False`/`Optional` recusado; `TrustServerCertificate` só com opt-in e aviso 3103 | `OrmConnectionSecurity` |
 | Injeção de SQL por valor | Parâmetros sempre (`@p0`, `@Nome`, `@__id_0`); `Parameters` imutável | `SqlQuery`, `OrmRepository.HasId` |
-| Injeção ou inferência pela ordenação (`SortBy=PasswordHash`) | Lista branca `[Sortable]`; sombra, exclusão lógica e tokens sempre recusados | `OrmRepository` |
+| Injeção ou inferência pela ordenação (`SortBy=PasswordHash`) | Lista branca `[Sortable]`; sem ela, só chave e datas de auditoria (`AllowUnmarkedSortBy = false`); sombra, exclusão lógica e tokens sempre recusados | `OrmRepository` |
 | Escrita pela conexão de leitura | Verificação de somente leitura + login só com `SELECT` | `OrmQueryExecutor` |
 | Negação de serviço por consulta enorme | `MaxQueryRows` com cancelamento no servidor; `MaxFindResults`; `MaxPageSize`; tempo limite | `OrmQueryExecutor`, `OrmRepository` |
 | Vazamento em erros da API | Mensagens fixas; `ExternalService`/`Failure` ocultas do cliente | `OrmErrors` |
@@ -140,7 +140,7 @@ sequenceDiagram
 |---|---|---|
 | `AllowTrustServerCertificate` | `false` | Só desenvolvimento local |
 | `EnforceReadOnlyQueries` | `true` | Nunca, salvo login de leitura comprovadamente só com `SELECT` |
-| `IdentifierLogMode` | `Plain` | `Hashed`/`Omitted` para chaves com dado pessoal |
+| `IdentifierLogMode` | `Auto` | Chave texto já com HMAC; `Hashed`/`Omitted` para esconder também chaves técnicas |
 | `MaxPageSize` / `MaxFindResults` / `MaxQueryRows` | 100 / 1.000 / 10.000 | Reduza em APIs públicas |
 
 ---

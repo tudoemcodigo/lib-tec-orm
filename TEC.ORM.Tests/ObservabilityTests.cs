@@ -79,6 +79,78 @@ public class ObservabilityTests
     }
 
     [Test]
+    [Arguments(IdentifierLogMode.Plain, "usuario-7", "usuario-7")]
+    [Arguments(IdentifierLogMode.Auto, "7f3c6a1e-0d2b-4c55-9a8e-2b1d4c6e8f00", "7f3c6a1e-0d2b-4c55-9a8e-2b1d4c6e8f00")]
+    [Arguments(IdentifierLogMode.Omitted, "usuario-7", "por - removeu")]
+    public async Task Hard_delete_audit_carries_actor_and_row_count(IdentifierLogMode mode, string actor, string expected)
+    {
+        // Revisão 2026-10-19 (SEG-02): quem excluiu e quantas linhas saíram, inclusive no lote
+        string target = NewTarget();
+        var (observability, logs) = Create(mode);
+        var operation = new OrmOperation(OrmDiagnostics.EntityFrameworkProvider, "hard-delete-many", target, isWrite: true)
+        {
+            IsHardDelete = true
+        };
+
+        await observability.ExecuteAsync(operation, _ =>
+        {
+            operation.Actor = actor;
+            operation.AffectedRows = 1234;
+            return Task.FromResult(Result<long>.Success(1234));
+        }, CancellationToken.None);
+
+        var entry = logs.Entries.Single();
+        await Assert.That(entry.EventId.Id).IsEqualTo(3007);
+        await Assert.That(entry.Text).Contains(expected);
+        await Assert.That(entry.Text).Contains("removeu 1234 linha(s)");
+    }
+
+    [Test]
+    public async Task Auto_mode_hashes_text_actor_and_text_identifier()
+    {
+        // Revisão 2026-10-19 (SEG-06): padrão Auto; e-mail (chave natural ou autor) nunca em claro
+        var (observability, logs) = Create(new OrmOptions().IdentifierLogMode);
+        var operation = new OrmOperation(OrmDiagnostics.EntityFrameworkProvider, "hard-delete", NewTarget(), isWrite: true)
+        {
+            Identifier = "ana@exemplo.com",
+            IsHardDelete = true,
+            Actor = "admin@exemplo.com",
+            AffectedRows = 1
+        };
+
+        await observability.ExecuteAsync(operation, _ => Task.FromResult(Result.Success()), CancellationToken.None);
+
+        await Assert.That(new OrmOptions().IdentifierLogMode).IsEqualTo(IdentifierLogMode.Auto);
+        await Assert.That(logs.AllText).DoesNotContain("exemplo.com");
+        await Assert.That(logs.AllText).Contains("hmac:");
+        await Assert.That(observability.FormatIdentifier(42)).IsEqualTo("42");
+        await Assert.That(observability.FormatIdentifier(Guid.Empty)).IsEqualTo(Guid.Empty.ToString());
+    }
+
+    [Test]
+    public async Task Conversion_exception_is_logged_without_the_column_value()
+    {
+        // Revisão 2026-10-19 (SEG-01): FormatException do .NET 8+ e DataException do Dapper repetem o valor lido do banco
+        const string value = "123.456.789-00";
+        var (observability, logs) = Create();
+
+        var format = await observability.ExecuteAsync(new OrmOperation("dapper", "query", NewTarget(), isWrite: false),
+            _ => throw new FormatException($"The input string '{value}' was not in a correct format."), CancellationToken.None);
+        var dapper = await observability.ExecuteAsync(new OrmOperation("dapper", "query", NewTarget(), isWrite: false),
+            _ => throw new System.Data.DataException($"Error parsing column 0 (Cpf={value} - String)",
+                new InvalidCastException($"'{value}' inválido")), CancellationToken.None);
+
+        await Assert.That(format.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
+        await Assert.That(dapper.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
+        await Assert.That(logs.Entries.Count(e => e.EventId.Id == 3005)).IsEqualTo(2);
+        await Assert.That(logs.AllText).DoesNotContain(value);
+        // Tipo e pilha continuam: dá para achar o mapeamento errado
+        await Assert.That(logs.AllText).Contains("System.FormatException");
+        await Assert.That(logs.AllText).Contains("System.Data.DataException <- System.InvalidCastException");
+        await Assert.That(logs.AllText).Contains(nameof(Conversion_exception_is_logged_without_the_column_value));
+    }
+
+    [Test]
     public async Task Successful_read_is_logged_as_debug()
     {
         var (observability, logs) = Create();

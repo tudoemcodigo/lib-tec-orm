@@ -44,7 +44,7 @@ flowchart LR
 
 | Coluna | Tipo | Conteúdo |
 |---|---|---|
-| `Scope`, `IdempotencyKey` | `nvarchar(200)` (chave primária) | Usuário e chave do cliente |
+| `Scope`, `IdempotencyKey` | `nvarchar(200) COLLATE Latin1_General_100_BIN2` (chave primária) | Escopo (no TEC.Cqrs 0.2.0, hash SHA-256 hex de 64 caracteres) e chave do cliente, comparados de forma **ordinal** (`Abc` ≠ `abc`), como exige o contrato do `IIdempotencyStore` |
 | `RequestHash` | `varchar(128)` | SHA-256 da requisição |
 | `LockId`, `State`, `LockedUntil` | — | Reserva (0 = em andamento, 1 = concluída) |
 | `RetentionSeconds`, `ExpiresAt` | — | Retenção e expiração (índice em `ExpiresAt`) |
@@ -69,6 +69,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 ```
 
 Depois gere e aplique a migration (`dotnet ef migrations add Idempotencia`).
+
+> [!IMPORTANT]
+> **Tabela criada antes da 0.2.0** (collation padrão do banco, em geral sem diferenciar maiúsculas): a próxima migration
+> gerada traz um `AlterColumn` com a collation binária, mas o SQL Server não altera a collation de coluna que está na chave
+> primária. Edite a migration para usar o script abaixo (a tabela só guarda respostas temporárias: se preferir, esvazie-a
+> antes). Chaves que só diferem em maiúsculas passam a ser distintas.
+>
+> ```sql
+> ALTER TABLE app.IdempotencyKeys DROP CONSTRAINT PK_IdempotencyKeys;
+> ALTER TABLE app.IdempotencyKeys ALTER COLUMN Scope nvarchar(200) COLLATE Latin1_General_100_BIN2 NOT NULL;
+> ALTER TABLE app.IdempotencyKeys ALTER COLUMN IdempotencyKey nvarchar(200) COLLATE Latin1_General_100_BIN2 NOT NULL;
+> ALTER TABLE app.IdempotencyKeys ADD CONSTRAINT PK_IdempotencyKeys PRIMARY KEY (Scope, IdempotencyKey);
+> ```
 
 ### Registrar
 

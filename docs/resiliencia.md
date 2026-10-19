@@ -1,8 +1,3 @@
-| `CircuitBreaker.Enabled` | `true` | — | Liga o circuit breaker da abertura de conexões |
-| `CircuitBreaker.FailureRatio` | `0.5` | > 0 e ≤ 1 | Proporção de falhas que abre o circuito |
-| `CircuitBreaker.MinimumThroughput` | `10` | 2 a 10.000 | Mínimo de aberturas na janela |
-| `CircuitBreaker.SamplingDuration` | `30 s` | 0,5 s a 1 h | Janela de amostragem |
-| `CircuitBreaker.BreakDuration` | `30 s` | 0,5 s a 1 h | Tempo aberto antes da abertura de teste |
 [🏠 TEC.ORM](../README.md) › [📚 Documentação](README.md) › 🔁 Resiliência
 
 # 🔁 Resiliência
@@ -173,6 +168,11 @@ breaker (`Polly.Core`, ligado por padrão em `OrmOptions.CircuitBreaker`) envolv
 | `MaxQueryRows` | `10000` | 1 a 1.000.000 | Linhas máximas das leituras complexas |
 | `MaxFindResults` | `1000` | 1 a 100.000 | Registros máximos da busca |
 | `CommandTimeoutSeconds` | `30` | 1 a 600 | Tempo limite dos comandos |
+| `CircuitBreaker.Enabled` | `true` | — | Liga o circuit breaker da abertura de conexões |
+| `CircuitBreaker.FailureRatio` | `0.5` | > 0 e ≤ 1 | Proporção de falhas que abre o circuito |
+| `CircuitBreaker.MinimumThroughput` | `10` | 2 a 10.000 | Mínimo de aberturas na janela |
+| `CircuitBreaker.SamplingDuration` | `30 s` | 0,5 s a 1 h | Janela de amostragem |
+| `CircuitBreaker.BreakDuration` | `30 s` | 0,5 s a 1 h | Tempo aberto antes da abertura de teste |
 
 ---
 
