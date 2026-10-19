@@ -61,9 +61,9 @@ bloquear PR nem versão.
 
 | Arquivo | Função |
 |---|---|
-| [`ci.yml`](ci.yml) | Validação de PR, do push na `main` (com publicação da prévia) e semanal na `main`, com `dotnet-ci.yml@v1` |
-| [`release.yml`](release.yml) | Publicação de versão estável ou `-rc.N`, com `dotnet-release.yml@v1` |
-| [`performance.yml`](performance.yml) | Testes de carga só sob demanda, manual (`dotnet-test.yml@v1`), e benchmarks (`dotnet-benchmark.yml@v1`) |
+| [`ci.yml`](ci.yml) | Validação de PR, do push na `main` (com publicação da prévia) e semanal na `main`, com `dotnet-ci.yml@v2` |
+| [`release.yml`](release.yml) | Publicação de versão estável ou `-rc.N`, com `dotnet-release.yml@v2` |
+| [`performance.yml`](performance.yml) | Testes de carga só sob demanda, manual (`dotnet-test.yml@v2`), e benchmarks (`dotnet-benchmark.yml@v2`) |
 | [`../scripts/integration-setup.sh`](../scripts/integration-setup.sh) | Sobe o SQL Server descartável (integração e `performance.yml`) e, na `main`, cria o segredo temporário no Key Vault |
 | [`../scripts/integration-teardown.sh`](../scripts/integration-teardown.sh) | Apaga e purga o segredo e remove o container (sempre, mesmo com falha) |
 | [`../dependabot.yml`](../dependabot.yml) · [`../zizmor.yml`](../zizmor.yml) | Canônicos do tec-workflows (não editar aqui) |

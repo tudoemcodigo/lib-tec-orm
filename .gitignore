@@ -507,3 +507,20 @@ relatorios/
 
 # Lock file do modo local (build/Tec.Build.targets: TecUseLocalProjects)
 packages.local.lock.json
+
+# Pastas de trabalho de ferramentas de IA
+.claude/
+.remember/
+.superpowers/
+.cursor/
+.codex/
+.gemini/
+.aider*
+.continue/
+.windsurf/
+.cline/
+.roo/
+.kilocode/
+.serena/
+.specstory/
+.omc/

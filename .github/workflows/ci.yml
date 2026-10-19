@@ -25,14 +25,14 @@ concurrency:
 
 jobs:
   ci:
-    uses: tudoemcodigo/tec-workflows/.github/workflows/dotnet-ci.yml@v1
+    uses: tudoemcodigo/tec-workflows/.github/workflows/dotnet-ci.yml@v2
     permissions:
       contents: read
       pull-requests: read
       packages: write          # prévia no push na main (o job de publicação só roda nesse caso)
       actions: read
-      security-events: read
-      id-token: write   # OIDC no Azure (só na main, fora de PR); exigido pelo job de testes reutilizável
+      security-events: write
+      id-token: write   # teto exigido pelo dotnet-test.yml (o token só é emitido no job de integração com Azure)
     with:
       solution: TEC.ORM.slnx
       private-feed: true

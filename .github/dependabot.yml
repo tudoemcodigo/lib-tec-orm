@@ -38,11 +38,20 @@ updates:
     #     com Condition). O Dependabot não entende a condição: propõe a major errada no bloco do net8.0 e regenera o
     #     lock de um TFM só (NU1004 no restore).
     #   - Roslyn (Microsoft.CodeAnalysis.*): a versão do gerador de código fica presa ao SDK mínimo suportado.
+    #   - Microsoft.Extensions.* (DependencyInjection e *.Abstractions) também podem ter uma versão por TFM (8.0.x no
+    #     net8.0, 10.0.x no net10.0): só major é ignorada (uma 10.x no bloco do net8.0 desfaria o pin); minor/patch
+    #     continuam vindo pelo Dependabot.
     # Vulnerabilidade conhecida nesses pacotes continua quebrando o restore (NuGetAudit).
     ignore:
       - dependency-name: "Microsoft.AspNetCore.*"
       - dependency-name: "Microsoft.EntityFrameworkCore*"
       - dependency-name: "Microsoft.CodeAnalysis*"
+      - dependency-name: "Microsoft.Extensions.DependencyInjection*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*.Abstractions"
+        update-types: ["version-update:semver-major"]
+
+  # O SDK do global.json (canônico) é atualizado pelo Dependabot do tec-workflows, no template/, e sincronizado daqui
 
   # Workflows centrais (tudoemcodigo/tec-workflows) e actions de terceiros
   - package-ecosystem: github-actions
