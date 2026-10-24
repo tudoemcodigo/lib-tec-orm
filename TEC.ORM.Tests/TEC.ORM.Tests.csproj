@@ -55,6 +55,10 @@
     <!-- Gerador do mapeamento: roda nesta compilação (DTOs de teste) e é referenciado pelos testes de diagnóstico -->
     <ProjectReference Include="..\TEC.ORM.Mapping.Generator\TEC.ORM.Mapping.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
     <ProjectReference Include="..\TEC.ORM.SqlServer\TEC.ORM.SqlServer.csproj" />
+    <ProjectReference Include="..\TEC.ORM.EntityFrameworkCore\TEC.ORM.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\TEC.ORM.PostgreSql\TEC.ORM.PostgreSql.csproj" />
+    <ProjectReference Include="..\TEC.ORM.MySql\TEC.ORM.MySql.csproj" />
+    <ProjectReference Include="..\TEC.ORM.Oracle\TEC.ORM.Oracle.csproj" />
     <TecReference Include="TEC.Vault.InMemory" />
     <TecReference Include="TEC.Vault.AzureKeyVault" />
   </ItemGroup>

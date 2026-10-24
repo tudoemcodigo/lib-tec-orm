@@ -38,6 +38,7 @@
   <!-- Componentes TEC do feed interno (tec-interno): TEC.Vault e TEC.Cqrs; o TEC.Core chega pelo TEC.ORM -->
   <ItemGroup>
     <ProjectReference Include="..\TEC.ORM\TEC.ORM.csproj" />
+    <ProjectReference Include="..\TEC.ORM.EntityFrameworkCore\TEC.ORM.EntityFrameworkCore.csproj" />
     <TecReference Include="TEC.Vault" />
     <TecReference Include="TEC.Cqrs" />
   </ItemGroup>

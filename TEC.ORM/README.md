@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/tudoemcodigo/lib-tec-orm/main/Images/Logo.png" alt="TEC.ORM" width="100" />
+<img src="https://www.tudoemcodigo.com/marca/PNG/tudoemcodigo-icone-512.png" alt="TEC.ORM" width="100" />
 
 # 🗄️ TEC.ORM
 

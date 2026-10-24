@@ -13,9 +13,14 @@
     <TecReference Include="TEC.Core" />
   </ItemGroup>
 
-  <!-- Satélite da mesma família (mesma versão em toda publicação): usa os internos do núcleo, ex.: Internal/ParameterReplacer -->
+  <!-- Satélites da mesma família: usam os internos do núcleo, ex.: Internal/ParameterReplacer -->
   <ItemGroup>
+    <InternalsVisibleTo Include="TEC.ORM.EntityFrameworkCore" />
     <InternalsVisibleTo Include="TEC.ORM.SqlServer" />
+    <InternalsVisibleTo Include="TEC.ORM.PostgreSql" />
+    <InternalsVisibleTo Include="TEC.ORM.MySql" />
+    <InternalsVisibleTo Include="TEC.ORM.Oracle" />
+    <InternalsVisibleTo Include="TEC.ORM.Tests" />
   </ItemGroup>
 
   <!--

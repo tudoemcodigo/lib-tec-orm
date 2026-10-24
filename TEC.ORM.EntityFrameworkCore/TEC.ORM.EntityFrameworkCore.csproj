@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Configurações de build, segurança e metadados comuns: ..\Directory.Build.props -->
+
+  <PropertyGroup>
+    <RootNamespace>TEC.ORM.EntityFrameworkCore</RootNamespace>
+    <Description>Implementação base do TEC.ORM com EF Core e Dapper: repositório genérico, trilha de auditoria histórica, exclusão lógica, resiliência e abstrações de dialeto para múltiplos bancos de dados.</Description>
+    <PackageTags>orm;entityframework;dapper;soft-delete;auditing;vault;opentelemetry;tec</PackageTags>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- EF Core acompanha o runtime: 8.x no net8.0 e 10.x no net10.0 (ambos LTS) -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Polly.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
+  </ItemGroup>
+
+  <!-- Satélites da mesma família com acesso aos tipos internos -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="TEC.ORM.SqlServer" />
+    <InternalsVisibleTo Include="TEC.ORM.PostgreSql" />
+    <InternalsVisibleTo Include="TEC.ORM.MySql" />
+    <InternalsVisibleTo Include="TEC.ORM.Oracle" />
+    <InternalsVisibleTo Include="TEC.ORM.Tests" />
+  </ItemGroup>
+
+  <!-- Componentes TEC do feed interno: TEC.Vault e TEC.Cqrs; o TEC.Core chega pelo TEC.ORM -->
+  <ItemGroup>
+    <ProjectReference Include="..\TEC.ORM\TEC.ORM.csproj" />
+    <TecReference Include="TEC.Vault" />
+    <TecReference Include="TEC.Cqrs" />
+  </ItemGroup>
+
+</Project>

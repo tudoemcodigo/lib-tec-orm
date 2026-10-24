@@ -10,6 +10,7 @@ using TEC.Cqrs.Abstractions;
 using TEC.Cqrs.Persistence;
 using TEC.ORM.Abstractions;
 using TEC.Core.Security;
+using TEC.ORM.EntityFrameworkCore.Dialects;
 using TEC.ORM.SqlServer.Auditing;
 using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Diagnostics;
@@ -23,6 +24,13 @@ namespace TEC.ORM.SqlServer.DependencyInjection;
 /// <summary>Registro do TEC.ORM (SQL Server) no container.</summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registra o TEC.ORM com suporte a SQL Server para o <typeparamref name="TContext"/>.
+    /// Alias para <see cref="AddTecOrm{TContext}"/>.
+    /// </summary>
+    public static IServiceCollection AddTecOrmSqlServer<TContext>(this IServiceCollection services, Action<OrmOptions> configure,
+        Action<SqlServerDbContextOptionsBuilder>? sqlServer = null) where TContext : DbContext
+        => services.AddTecOrm<TContext>(configure, sqlServer);
     /// <summary>
     /// Registra o TEC.ORM com o <typeparamref name="TContext"/>:
     /// <list type="bullet">
@@ -85,6 +93,9 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(options);
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<ISqlDialect, SqlServerDialect>();
+        services.TryAddSingleton<IReadOnlySqlValidator, SqlServerReadOnlySqlValidator>();
+        services.TryAddSingleton<IOrmExceptionTranslator, SqlServerExceptionTranslatorAdapter>();
         services.TryAddSingleton<IOrmConnectionSecurity, OrmConnectionSecurity>();
         services.TryAddSingleton<IOrmOperationRunner, OrmOperationRunner>();
         services.TryAddSingleton(provider => CreateConnectionInterceptor(provider, provider.GetRequiredService<OrmOptions>(),

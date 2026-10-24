@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>TEC.ORM.Oracle</RootNamespace>
+    <Description>Provedor Oracle Database para o TEC.ORM com Entity Framework Core e Dapper: conexão segura do cofre, isolamento de dialeto e resiliência.</Description>
+    <PackageTags>orm;oracle;odp.net;entityframework;dapper;vault;opentelemetry;tec</PackageTags>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Oracle.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TEC.ORM.EntityFrameworkCore\TEC.ORM.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+</Project>
