@@ -56,7 +56,7 @@
         "type": "Direct",
         "requested": "[0.0.1, )",
         "resolved": "0.0.1",
-        "contentHash": "0pl2OBWgIr3Qxu2qF1J/o9UFOFPGamk+yTuMY1wlxqE5bKmp2x6yabtmEyEq4SOe1dIfZ8wOTuC1fKXAx7eTnA==",
+        "contentHash": "I9MahWbCqyksEzJpyaYil8fsfrbl7VtlKgnNnaNn1/hjiXegNP1T2IysewSSoQaEQL5gdKEVFjCNY6oTMvx6Sg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"
@@ -479,7 +479,7 @@
         "type": "Direct",
         "requested": "[0.0.1, )",
         "resolved": "0.0.1",
-        "contentHash": "0pl2OBWgIr3Qxu2qF1J/o9UFOFPGamk+yTuMY1wlxqE5bKmp2x6yabtmEyEq4SOe1dIfZ8wOTuC1fKXAx7eTnA==",
+        "contentHash": "I9MahWbCqyksEzJpyaYil8fsfrbl7VtlKgnNnaNn1/hjiXegNP1T2IysewSSoQaEQL5gdKEVFjCNY6oTMvx6Sg==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.12",
           "TEC.Core": "0.0.1"
