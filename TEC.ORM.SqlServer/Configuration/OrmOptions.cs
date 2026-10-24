@@ -122,6 +122,14 @@ public sealed class OrmOptions
     public bool EnforceReadOnlyQueries { get; set; } = true;
 
     /// <summary>
+    /// Habilita a gravação da Trilha Histórica de Auditoria (Audit Trail) para entidades marcadas com [Auditable]. Padrão true.
+    /// </summary>
+    public bool EnableHistoricalAudit { get; set; } = true;
+
+    /// <summary>Nome da tabela de auditoria histórica. Padrão "OrmAuditRecords".</summary>
+    public string AuditLogTableName { get; set; } = "OrmAuditRecords";
+
+    /// <summary>
     /// Identificador do registro (e autor da exclusão física) nos logs de auditoria. Padrão <see cref="IdentifierLogMode.Auto"/>:
     /// chaves técnicas em claro, chaves texto com HMAC.
     /// </summary>

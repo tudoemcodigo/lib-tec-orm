@@ -15,7 +15,8 @@ public sealed class PostgreSqlReadOnlySqlValidator : IReadOnlySqlValidator
         "EXECUTE", "PREPARE", "DEALLOCATE", "CALL", "DO",
         "COPY", "VACUUM", "ANALYZE", "REINDEX", "CLUSTER", "CHECKPOINT",
         "LOCK", "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT", "SET", "RESET",
-        "PG_SLEEP"
+        "PG_SLEEP", "PG_READ_FILE", "PG_READ_BINARY_FILE", "PG_WRITE_FILE", "PG_WRITE_BINARY_FILE",
+        "DBLINK", "DBLINK_EXEC", "LO_IMPORT", "LO_EXPORT"
     };
 
     /// <inheritdoc />
@@ -83,13 +84,24 @@ public sealed class PostgreSqlReadOnlySqlValidator : IReadOnlySqlValidator
                 if (depth > 0) return null;
                 output.Append(' ');
             }
+            else if (c == '$' && TryDollarTag(sql, i, out string tag))
+            {
+                // Literal entre dólares ($$...$$ ou $tag$...$tag$): nada dentro dele é código
+                int end = sql.IndexOf(tag, i + tag.Length, StringComparison.Ordinal);
+                if (end < 0) return null;
+                i = end + tag.Length;
+                output.Append(' ');
+            }
             else if (c is '\'' or '"')
             {
                 char delimiter = c;
+                // A barra invertida só escapa em literal E'...' (standard_conforming_strings): no literal comum e no identificador
+                // ela é um caractere qualquer, e tratá-la como escape esconderia o fim real do literal
+                bool backslashEscapes = c == '\'' && i > 0 && sql[i - 1] is 'E' or 'e' && (i < 2 || !IsWordChar(sql[i - 2]));
                 i++;
                 while (i < sql.Length && sql[i] != delimiter)
                 {
-                    if (sql[i] == '\\' && i + 1 < sql.Length) i++;
+                    if (backslashEscapes && sql[i] == '\\' && i + 1 < sql.Length) i++;
                     i++;
                 }
                 if (i >= sql.Length) return null;
@@ -103,6 +115,25 @@ public sealed class PostgreSqlReadOnlySqlValidator : IReadOnlySqlValidator
             }
         }
         return output.ToString();
+    }
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    // $$ ou $tag$ (tag: letra ou _ seguida de letras, dígitos ou _), fora de uma palavra ($1 é parâmetro, não literal)
+    private static bool TryDollarTag(string sql, int start, out string tag)
+    {
+        tag = "";
+        if (start > 0 && IsWordChar(sql[start - 1]))
+            return false;
+        int j = start + 1;
+        if (j < sql.Length && (char.IsLetter(sql[j]) || sql[j] == '_'))
+        {
+            while (j < sql.Length && IsWordChar(sql[j])) j++;
+        }
+        if (j >= sql.Length || sql[j] != '$')
+            return false;
+        tag = sql.Substring(start, j - start + 1);
+        return true;
     }
 
     private static IEnumerable<string> Words(string code)

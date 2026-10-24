@@ -137,9 +137,9 @@ public sealed class ReportService(IOrmQueryExecutor queries)
 
 ### OrmQueryExecutor (Dapper)
 
-> `TEC.ORM.SqlServer` · `class` (membros `virtual`) · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore` · `class` (membros `virtual`) · pacote `TEC.ORM.EntityFrameworkCore` (utilizado por todos os provedores: SQL Server, PostgreSQL, MySQL e Oracle)
 
-Construtor: `OrmQueryExecutor(IOrmConnectionSecurity security, IOrmOperationRunner runner, OrmOptions options)`.
+Construtor: `OrmQueryExecutor(IOrmConnectionSecurity security, IOrmOperationRunner runner, OrmOptions options, IReadOnlySqlValidator? sqlValidator = null)`.
 
 | Comportamento | Detalhe |
 |---|---|

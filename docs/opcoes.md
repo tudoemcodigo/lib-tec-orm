@@ -102,6 +102,8 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `TransientRetryCount` | `int` | `2` | 0 a 5 | Novas tentativas em falha transitória, **só em leituras fora de transação** (`0` desliga) |
 | `TransientRetryDelay` | `TimeSpan` | `200 ms` | 10 ms a 10 s | Espera antes da primeira nova tentativa; dobra a cada tentativa, com até 50% de variação aleatória |
 | `EnforceReadOnlyQueries` | `bool` | `true` | — | Verificação de somente leitura nas leituras complexas |
+| `EnableHistoricalAudit` | `bool` | `true` | — | Habilita a gravação de trilha histórica com diffs para entidades `[Auditable]` |
+| `AuditLogTableName` | `string` | `"OrmAuditRecords"` | nome válido de tabela | Nome da tabela de trilha histórica |
 | `IdentifierLogMode` | `IdentifierLogMode` | `Auto` | valor definido | Como o identificador (e o autor da exclusão física) aparece nos logs de auditoria |
 | `CircuitBreaker` | `OrmCircuitBreakerOptions` | ligado (50%, 10 aberturas, 30 s, 30 s) | ver [🔁 Resiliência](resiliencia.md#circuit-breaker-da-conexão) | Circuit breaker da abertura de conexões: `Enabled`, `FailureRatio` (> 0 e ≤ 1), `MinimumThroughput` (2 a 10.000), `SamplingDuration` e `BreakDuration` (0,5 s a 1 h) |
 | `Validate()` | `void` | — | — | Valida tudo; lança `InvalidConfigurationException("TecOrm:<Opção>")` |

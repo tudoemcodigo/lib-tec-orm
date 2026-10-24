@@ -62,10 +62,17 @@ public sealed class PostgreSqlDialect : ISqlDialect
         if (string.IsNullOrWhiteSpace(builder.Database))
             return OrmErrors.InvalidInput("Database", "Banco de dados (Database) do PostgreSQL não informado no segredo.");
 
-        if (builder.SslMode == SslMode.Disable)
-            return OrmErrors.InvalidInput("SslMode", "Criptografia desabilitada (SslMode=Disable não permitido).");
+        // Disable/Allow/Prefer aceitam (ou voltam a) conexão sem TLS: a criptografia é obrigatória
+        if (builder.SslMode is SslMode.Disable or SslMode.Allow or SslMode.Prefer)
+            return OrmErrors.InvalidInput("SslMode", "Criptografia obrigatória (use SslMode=Require, VerifyCA ou VerifyFull).");
+
+        // Require não valida o certificado do servidor: equivale ao TrustServerCertificate e exige o opt-in
+        if (builder.SslMode == SslMode.Require && !allowTrustServerCertificate)
+            return OrmErrors.InvalidInput("SslMode", "SslMode=Require não valida o certificado do servidor (use VerifyCA ou VerifyFull, ou habilite AllowTrustServerCertificate).");
 
         builder.PersistSecurityInfo = false;
+        if (isReadOnly)
+            builder.Enlist = false;   // fora do TransactionScope ambiente, como no SQL Server
         builder.ApplicationName = applicationName;
         builder.CommandTimeout = commandTimeoutSeconds;
 

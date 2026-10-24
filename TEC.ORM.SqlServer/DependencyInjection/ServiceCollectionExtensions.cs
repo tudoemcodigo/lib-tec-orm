@@ -10,7 +10,9 @@ using TEC.Cqrs.Abstractions;
 using TEC.Cqrs.Persistence;
 using TEC.ORM.Abstractions;
 using TEC.Core.Security;
+using TEC.ORM.Auditing;
 using TEC.ORM.EntityFrameworkCore.Dialects;
+using HistoricalAuditInterceptor = TEC.ORM.EntityFrameworkCore.Auditing.HistoricalAuditInterceptor;
 using TEC.ORM.SqlServer.Auditing;
 using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Diagnostics;
@@ -103,6 +105,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(provider => new SoftDeleteInterceptor(provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<OrmOptions>().MaxSoftDeletePropagation));
         services.TryAddSingleton<AuditInterceptor>();
+        services.TryAddSingleton<IOrmAuditContextProvider, DefaultOrmAuditContextProvider>();
+        services.TryAddSingleton<HistoricalAuditInterceptor>();
 
         services.AddKeyedSingleton<OrmOptions>(typeof(TContext), options);
         services.AddKeyedSingleton<SecretConnectionInterceptor>(typeof(TContext), (provider, _) => primary
@@ -198,7 +202,15 @@ public static class ServiceCollectionExtensions
             sqlServer?.Invoke(sql);
         });
         // Ordem: a exclusão lógica vira alteração de IsDeleted antes da auditoria preencher DeletedBy
-        builder.AddInterceptors(connection, softDelete, provider.GetRequiredService<AuditInterceptor>());
+        if (options.EnableHistoricalAudit)
+        {
+            var historicalAudit = provider.GetRequiredService<HistoricalAuditInterceptor>();
+            builder.AddInterceptors(connection, softDelete, historicalAudit, provider.GetRequiredService<AuditInterceptor>());
+        }
+        else
+        {
+            builder.AddInterceptors(connection, softDelete, provider.GetRequiredService<AuditInterceptor>());
+        }
         // Identidade da operação (auditoria): o ICurrentUser (TEC.Core), lido a cada uso
         builder.UseTecOrmIdentity(currentUser);
         // Filtro global de exclusão lógica mesmo sem OrmDbContext/AddTecOrmConventions (idempotente com eles)

@@ -65,6 +65,15 @@ public sealed class OracleDialect : ISqlDialect
         if (string.IsNullOrWhiteSpace(builder.UserID))
             return OrmErrors.InvalidInput("UserID", "Usuário do Oracle não informado no segredo.");
 
+        // Sem TLS na descrição do endereço (PROTOCOL=TCP ou tcp:): senha e dados trafegam em claro. Alias do tnsnames/wallet
+        // (sem protocolo na string) não é inspecionável aqui: a política de TLS do alias é de quem o mantém
+        string dataSource = builder.DataSource.Replace(" ", "", StringComparison.Ordinal);
+        bool plainTcp = dataSource.Contains("PROTOCOL=TCP)", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase);
+        if (plainTcp && !allowTrustServerCertificate)
+            return OrmErrors.InvalidInput("DataSource", "Conexão Oracle sem criptografia (PROTOCOL=TCP): use TCPS ou habilite AllowTrustServerCertificate só em desenvolvimento.");
+
         builder.PersistSecurityInfo = false;
         builder.ConnectionTimeout = commandTimeoutSeconds;
 

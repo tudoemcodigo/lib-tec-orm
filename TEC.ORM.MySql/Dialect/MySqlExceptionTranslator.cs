@@ -1,3 +1,4 @@
+using System.Data.Common;
 using MySqlConnector;
 using TEC.Core.Common.Results;
 using TEC.ORM.Common;
@@ -6,7 +7,7 @@ using TEC.ORM.EntityFrameworkCore.Dialects;
 namespace TEC.ORM.MySql.Dialect;
 
 /// <summary>
-/// Tradutor de exceções do provedor MySqlConnector / MySQL para erros de domínio do TEC.ORM.
+/// Tradutor de exceções dos provedores MySQL (MySqlConnector e MySql.Data / Oracle) para erros de domínio do TEC.ORM.
 /// </summary>
 public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
 {
@@ -31,9 +32,8 @@ public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
     /// <inheritdoc />
     public OrmDbExceptionTranslation Translate(Exception exception)
     {
-        if (exception is MySqlException mySqlEx)
+        if (TryGetMySqlErrorNumber(exception, out int number))
         {
-            int number = mySqlEx.Number;
             if (number is 1062 or 1451 or 1452)
                 return new OrmDbExceptionTranslation(OrmErrors.Conflict(), false, number.ToString());
 
@@ -58,8 +58,8 @@ public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
     /// <inheritdoc />
     public bool IsTransient(Exception exception)
     {
-        if (exception is MySqlException mySqlEx)
-            return TransientErrors.Contains(mySqlEx.Number);
+        if (TryGetMySqlErrorNumber(exception, out int number))
+            return TransientErrors.Contains(number);
 
         return false;
     }
@@ -67,9 +67,35 @@ public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
     /// <inheritdoc />
     public bool IsConnectionFailure(Exception exception)
     {
-        if (exception is MySqlException mySqlEx)
-            return ConnectionErrors.Contains(mySqlEx.Number);
+        if (TryGetMySqlErrorNumber(exception, out int number))
+            return ConnectionErrors.Contains(number);
 
+        return false;
+    }
+
+    private static bool TryGetMySqlErrorNumber(Exception exception, out int number)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is MySqlException mySqlEx)
+            {
+                number = mySqlEx.Number;
+                return true;
+            }
+
+            // Suporte compatível com o provedor MySql.Data / MySql.EntityFrameworkCore (Oracle) no .NET 10
+            if (current is DbException dbEx && current.GetType().Name == "MySqlException")
+            {
+                var prop = current.GetType().GetProperty("Number");
+                if (prop?.GetValue(current) is int num)
+                {
+                    number = num;
+                    return true;
+                }
+            }
+        }
+
+        number = 0;
         return false;
     }
 }

@@ -53,8 +53,8 @@ internal static partial class OrmLog
     [LoggerMessage(3101, LogLevel.Error, "ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}.")]
     public static partial void SecretRejected(ILogger logger, string kind, string reason);
 
-    [LoggerMessage(3102, LogLevel.Error, "ORM: falha ao abrir a conexão {Kind} (SQL {SqlErrorNumber}).")]
-    public static partial void ConnectionOpenFailed(ILogger logger, string kind, string sqlErrorNumber);
+    [LoggerMessage(3102, LogLevel.Error, "ORM: falha ao abrir a conexão {Kind} ({ExceptionType}).")]
+    public static partial void ConnectionOpenFailed(ILogger logger, string kind, string exceptionType);
 
     [LoggerMessage(3103, LogLevel.Warning, "ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento).")]
     public static partial void TrustServerCertificateEnabled(ILogger logger, string kind);

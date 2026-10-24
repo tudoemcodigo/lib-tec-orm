@@ -64,10 +64,13 @@ public sealed class MySqlDialect : ISqlDialect
         if (builder.SslMode == MySqlSslMode.None)
             return OrmErrors.InvalidInput("SslMode", "Criptografia desabilitada (SslMode=None não permitido).");
 
-        if (builder.SslMode == MySqlSslMode.Preferred && !allowTrustServerCertificate)
-            return OrmErrors.InvalidInput("SslMode", "SslMode=Preferred exige certificado confiável em produção (use Required ou VerifyCA).");
+        // Preferred volta a conexão sem TLS; Required não valida o certificado (equivale ao TrustServerCertificate)
+        if (builder.SslMode is MySqlSslMode.Preferred or MySqlSslMode.Required && !allowTrustServerCertificate)
+            return OrmErrors.InvalidInput("SslMode", "Use SslMode=VerifyCA ou VerifyFull (Preferred/Required não validam o certificado do servidor), ou habilite AllowTrustServerCertificate.");
 
         builder.PersistSecurityInfo = false;
+        if (isReadOnly)
+            builder.AutoEnlist = false;   // fora do TransactionScope ambiente, como no SQL Server
         builder.ApplicationName = applicationName;
         builder.DefaultCommandTimeout = (uint)commandTimeoutSeconds;
 

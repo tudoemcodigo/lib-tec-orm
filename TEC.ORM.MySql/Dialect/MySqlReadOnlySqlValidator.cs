@@ -14,7 +14,7 @@ public sealed class MySqlReadOnlySqlValidator : IReadOnlySqlValidator
         "CREATE", "ALTER", "DROP", "GRANT", "REVOKE",
         "EXECUTE", "PREPARE", "DEALLOCATE", "CALL",
         "LOCK", "UNLOCK", "BEGIN", "COMMIT", "ROLLBACK", "SET",
-        "LOAD", "SLEEP"
+        "LOAD", "LOAD_FILE", "SLEEP", "BENCHMARK"
     };
 
     /// <inheritdoc />
@@ -65,7 +65,8 @@ public sealed class MySqlReadOnlySqlValidator : IReadOnlySqlValidator
             char c = sql[i];
             char next = i + 1 < sql.Length ? sql[i + 1] : '\0';
 
-            if ((c == '-' && next == '-') || c == '#')
+            // No MySQL "--" só abre comentário quando seguido de espaço ou controle (ou do fim): "1--1" é uma subtração
+            if ((c == '-' && next == '-' && (i + 2 >= sql.Length || char.IsWhiteSpace(sql[i + 2]) || char.IsControl(sql[i + 2]))) || c == '#')
             {
                 int end = sql.IndexOfAny(['\r', '\n'], i);
                 i = end < 0 ? sql.Length : end;
@@ -73,15 +74,13 @@ public sealed class MySqlReadOnlySqlValidator : IReadOnlySqlValidator
             }
             else if (c == '/' && next == '*')
             {
-                int depth = 1;
-                i += 2;
-                while (i < sql.Length && depth > 0)
-                {
-                    if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*') { depth++; i += 2; }
-                    else if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/') { depth--; i += 2; }
-                    else i++;
-                }
-                if (depth > 0) return null;
+                // /*! ... */ e /*M! ... */ são comentários que o servidor EXECUTA: recusados em vez de ignorados
+                if (i + 2 < sql.Length && (sql[i + 2] == '!' || (sql[i + 2] == 'M' && i + 3 < sql.Length && sql[i + 3] == '!')))
+                    return null;
+                // Comentário de bloco do MySQL não aninha: termina no primeiro "*/"
+                int end = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                if (end < 0) return null;
+                i = end + 2;
                 output.Append(' ');
             }
             else if (c is '\'' or '"' or '`')
@@ -90,7 +89,7 @@ public sealed class MySqlReadOnlySqlValidator : IReadOnlySqlValidator
                 i++;
                 while (i < sql.Length && sql[i] != delimiter)
                 {
-                    if (sql[i] == '\\' && i + 1 < sql.Length) i++;
+                    if (sql[i] == '\\' && delimiter != '`' && i + 1 < sql.Length) i++;
                     i++;
                 }
                 if (i >= sql.Length) return null;

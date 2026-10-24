@@ -37,7 +37,7 @@ public sealed class OracleReadOnlySqlValidator : IReadOnlySqlValidator
             if (word.Equals("UPDATE", StringComparison.OrdinalIgnoreCase) && "FOR".Equals(previous, StringComparison.OrdinalIgnoreCase))
                 return "comando de bloqueio não permitido em consulta de leitura (FOR UPDATE).";
 
-            if (word.StartsWith("DBMS_", StringComparison.OrdinalIgnoreCase))
+            if (word.StartsWith("DBMS_", StringComparison.OrdinalIgnoreCase) || word.StartsWith("UTL_", StringComparison.OrdinalIgnoreCase))
                 return $"chamada a pacote de sistema não permitida em consulta de leitura ({word.ToUpperInvariant()}).";
 
             previous = word;
@@ -70,15 +70,20 @@ public sealed class OracleReadOnlySqlValidator : IReadOnlySqlValidator
             }
             else if (c == '/' && next == '*')
             {
-                int depth = 1;
-                i += 2;
-                while (i < sql.Length && depth > 0)
-                {
-                    if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*') { depth++; i += 2; }
-                    else if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/') { depth--; i += 2; }
-                    else i++;
-                }
-                if (depth > 0) return null;
+                // Comentário de bloco do Oracle não aninha: termina no primeiro "*/"
+                int end = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                if (end < 0) return null;
+                i = end + 2;
+                output.Append(' ');
+            }
+            else if (c is 'q' or 'Q' && next == '\'' && i + 2 < sql.Length && !(i > 0 && IsWordChar(sql[i - 1])))
+            {
+                // Literal alternativo q'[...]' / q'!...!': termina no delimitador seguido de aspa
+                char open = sql[i + 2];
+                char close = open switch { '[' => ']', '(' => ')', '{' => '}', '<' => '>', _ => open };
+                int end = sql.IndexOf(close + "'", i + 3, StringComparison.Ordinal);
+                if (end < 0) return null;
+                i = end + 2;
                 output.Append(' ');
             }
             else if (c is '\'' or '"')
@@ -87,8 +92,7 @@ public sealed class OracleReadOnlySqlValidator : IReadOnlySqlValidator
                 i++;
                 while (i < sql.Length && sql[i] != delimiter)
                 {
-                    if (sql[i] == '\\' && i + 1 < sql.Length) i++;
-                    i++;
+                    i++;   // no Oracle a barra invertida não escapa; a aspa é duplicada ('')
                 }
                 if (i >= sql.Length) return null;
                 i++;
@@ -102,6 +106,8 @@ public sealed class OracleReadOnlySqlValidator : IReadOnlySqlValidator
         }
         return output.ToString();
     }
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
 
     private static IEnumerable<string> Words(string code)
     {

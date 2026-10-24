@@ -145,6 +145,45 @@ adicionada, alterada ou excluída:
 | Exclusão lógica | Grava `DeletedBy`/`DeletedByTenant`; os de alteração ficam fora do `UPDATE` |
 | Identidade sem tenant | Grava com os "por tenant" `null` |
 
+### Trilha Histórica de Auditoria (Audit Trail / Diffs)
+
+> `TEC.ORM.Auditing` · `class OrmAuditRecord` · atributos `[Auditable]`, `[SensitiveData]`, `[AuditIgnore]` · `HistoricalAuditInterceptor`
+
+Além da auditoria cadastral de entidade (`IAuditable`), o TEC.ORM oferece a gravação completa da **trilha histórica com diffs atômicos** na mesma transação da gravação:
+- **`[Auditable]`**: Anote a classe de domínio para habilitar o rastreamento histórico de alterações.
+- **`[SensitiveData]`**: Propriedades anotadas têm seus valores mascarados como `***` nos JSONs de histórico (`OldValues` e `NewValues`).
+- **`[AuditIgnore]`**: Propriedades anotadas são completamente omitidas do log de diffs.
+- **Mapeamento da Tabela**: No método `OnModelCreating` do seu `DbContext`, configure a tabela com `modelBuilder.AddTecOrmHistoricalAudit()`.
+
+```csharp
+using TEC.ORM.Auditing;
+using TEC.ORM.Entities;
+
+[Auditable]
+public sealed class Customer : AuditableEntity<Guid>
+{
+    public string Name { get; set; } = string.Empty;
+
+    [SensitiveData]
+    public string DocumentNumber { get; set; } = string.Empty;
+
+    [AuditIgnore]
+    public string CacheKey { get; set; } = string.Empty;
+}
+
+// Configuração no DbContext
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+    modelBuilder.AddTecOrmHistoricalAudit(); // Mapeia OrmAuditRecords com índices
+}
+```
+
+O `OrmAuditRecord` registra de forma imutável:
+- `Action`: `Created`, `Updated`, `Deleted` ou `SoftDeleted`.
+- `OldValues` / `NewValues` / `AffectedColumns`: Dicionários serializados em JSON com as alterações.
+- `ActorId`, `ActorType` (`User`, `M2M`, `ApiKey`, `System`, `Anonymous`), `ActorName`, `TenantId`, `TraceId`, `CorrelationId`, `ClientIp`, `Endpoint` e `TimestampUtc`.
+
 ### Migração do banco
 
 A convenção (aplicada por `AddTecOrm`/`UseTecOrm`, `OrmDbContext` e `AddTecOrmConventions`) define, quando a entidade não

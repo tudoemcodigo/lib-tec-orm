@@ -1,9 +1,15 @@
+<div align="center">
+<img src="https://www.tudoemcodigo.com/marca/PNG/tudoemcodigo-icone-512.png" alt="Tudo em Código" width="90" />
+</div>
+
 [🏠 TEC.ORM](../README.md) › 📚 Documentação
 
 # 📚 Documentação do TEC.ORM
 
-> Referência completa dos pacotes `TEC.ORM` (abstrações e mapeamento entidade ↔ DTO, com o gerador embutido) e
-> `TEC.ORM.SqlServer` (EF Core + Dapper): como usar, opções, erros e cuidados de segurança, conferidos com o código.
+> Referência completa dos pacotes da família **TEC.ORM**:
+> - `TEC.ORM`: abstrações, DTOs e gerador de mapeamento;
+> - `TEC.ORM.EntityFrameworkCore`: motor base agnóstico, auditoria histórica com diffs, idempotência e resiliência;
+> - `TEC.ORM.SqlServer`, `TEC.ORM.PostgreSql`, `TEC.ORM.MySql` e `TEC.ORM.Oracle`: provedores especializados para cada banco de dados.
 
 ## 📑 Sumário
 

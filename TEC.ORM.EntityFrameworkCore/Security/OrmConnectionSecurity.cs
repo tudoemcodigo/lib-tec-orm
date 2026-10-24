@@ -55,7 +55,8 @@ public sealed class OrmConnectionSecurity(
         catch (Exception exception)
         {
             await connection.DisposeAsync().ConfigureAwait(false);
-            OrmLog.ConnectionOpenFailed(logger, KindName(kind), exception.Message);
+            // Sem a mensagem: ela pode citar servidor, banco e usuário. Só o tipo da exceção
+            OrmLog.ConnectionOpenFailed(logger, KindName(kind), exception.GetType().Name);
             return OrmErrors.ConnectionUnavailable();
         }
     }
