@@ -9,9 +9,10 @@ using TEC.Cqrs.DependencyInjection;
 using TEC.Cqrs.Idempotency;
 using TEC.Cqrs.Validation;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Dialects;
+using TEC.ORM.EntityFrameworkCore.Idempotency;
+using TEC.ORM.SqlServer;
 using TEC.ORM.SqlServer.DependencyInjection;
-using TEC.ORM.SqlServer.Idempotency;
-using TEC.ORM.SqlServer.Internal;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 
@@ -34,7 +35,7 @@ internal sealed class ThrowingHandler : ICommandHandler<ThrowingCommand>
 
 public class OrmExceptionErrorMapperTests
 {
-    private static readonly OrmExceptionErrorMapper Mapper = new();
+    private static readonly OrmExceptionErrorMapper Mapper = new(new SqlServerExceptionTranslator());
 
     [Test]
     public async Task Optimistic_concurrency_and_deadlock_map_to_ORM_CONCORRENCIA()

@@ -9,7 +9,9 @@ using TEC.ORM.EntityFrameworkCore.Security;
 namespace TEC.ORM.EntityFrameworkCore.HealthChecks;
 
 /// <summary>
-/// Health check do banco de dados que executa a query de probe do dialeto sobre a conexão protegida do cofre.
+/// Health check do banco: abre uma conexão pelo <see cref="IOrmConnectionSecurity"/> (segredo do TEC.Vault + política) e executa
+/// a consulta de verificação do dialeto (<c>SELECT 1</c>; <c>SELECT 1 FROM DUAL</c> no Oracle). A descrição traz só o código do
+/// erro, nunca servidor, banco ou mensagem do driver.
 /// </summary>
 public sealed class OrmHealthCheck(
     IOrmConnectionSecurity security,
@@ -38,7 +40,7 @@ public sealed class OrmHealthCheck(
                 var command = connection.CreateCommand();
                 await using (command.ConfigureAwait(false))
                 {
-#pragma warning disable CA2100 // Probe query provém de implementação interna de dialeto (ISqlDialect), não de entrada de usuário
+#pragma warning disable CA2100 // consulta fixa do dialeto (ISqlDialect.HealthCheckProbeQuery), sem entrada de usuário
                     command.CommandText = _dialect.HealthCheckProbeQuery;
 #pragma warning restore CA2100
                     await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -55,16 +57,19 @@ public sealed class OrmHealthCheck(
     }
 }
 
-/// <summary>Extensões de Health Check.</summary>
+/// <summary>Registro do health check do TEC.ORM.</summary>
 public static class OrmHealthChecksBuilderExtensions
 {
-    /// <summary>Tag padrão de prontidão (ready).</summary>
+    /// <summary>Tag de readiness (a mesma do TEC.Observability: <c>/health/ready</c>).</summary>
     public const string ReadyTag = "ready";
 
-    /// <summary>Tag padrão de banco de dados.</summary>
+    /// <summary>Tag de banco de dados (a mesma do TEC.Observability).</summary>
     public const string DatabaseTag = "database";
 
-    /// <summary>Adiciona o Health Check do banco de dados.</summary>
+    /// <summary>
+    /// Adiciona o health check do banco do contexto principal. Com as tags padrão (<c>ready</c> e <c>database</c>) entra no
+    /// readiness do TEC.Observability sem configuração; informar <paramref name="tags"/> substitui as duas.
+    /// </summary>
     public static IHealthChecksBuilder AddTecOrm(this IHealthChecksBuilder builder, string name = "tec-orm",
         HealthStatus failureStatus = HealthStatus.Unhealthy, IEnumerable<string>? tags = null, TimeSpan? timeout = null)
     {

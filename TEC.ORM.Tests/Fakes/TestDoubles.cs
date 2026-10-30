@@ -5,14 +5,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
+using TEC.ORM.SqlServer;
+using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.Vault.Abstractions;
 using TEC.Vault.DependencyInjection;
 using TEC.Vault.InMemory;
-using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
-using TEC.ORM.SqlServer.SoftDelete;
-using TEC.ORM.Tests.Database.CodeFirst;
 
 namespace TEC.ORM.Tests.Fakes;
 
@@ -104,9 +105,10 @@ internal static class TestOrm
     public const string SecretName = "dbtecbase-sql";
     public const string ReadOnlySecretName = "dbtecbase-sql-leitura";
 
+    /// <summary>Opções válidas com o dialeto do SQL Server (o banco dos testes de integração e o padrão destes unitários).</summary>
     public static OrmOptions Options(Action<OrmOptions>? configure = null)
     {
-        var options = new OrmOptions { ConnectionSecretName = SecretName };
+        var options = new OrmOptions { ConnectionSecretName = SecretName, Dialect = new SqlServerDialect() };
         configure?.Invoke(options);
         options.Validate();
         return options;

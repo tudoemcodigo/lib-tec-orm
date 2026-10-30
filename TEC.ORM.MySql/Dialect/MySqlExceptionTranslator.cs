@@ -1,19 +1,24 @@
-using System.Data.Common;
-using MySqlConnector;
-using TEC.Core.Common.Results;
+using System.Globalization;
+using MySql.Data.MySqlClient;
 using TEC.ORM.Common;
 using TEC.ORM.EntityFrameworkCore.Dialects;
 
 namespace TEC.ORM.MySql.Dialect;
 
 /// <summary>
-/// Tradutor de exceções dos provedores MySQL (MySqlConnector e MySql.Data / Oracle) para erros de domínio do TEC.ORM.
+/// Tradutor das exceções do MySql.Data (<see cref="MySqlException"/>, também dentro de <c>DbUpdateException</c>) para erros de
+/// domínio do TEC.ORM. Concorrência otimista, tempo esgotado e as recusas do TEC.ORM ficam na base
+/// (<see cref="OrmExceptionTranslatorBase"/>).
 /// </summary>
-public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
+public sealed class MySqlExceptionTranslator : OrmExceptionTranslatorBase
 {
+    private const int DuplicateEntry = 1062;
+    private const int DuplicateEntryWithKeyName = 1586;
+
     private static readonly HashSet<int> ConnectionErrors =
     [
         1042, // Unable to connect to any of the specified hosts
+        1045, // Access denied (login recusado)
         2002, // Can't connect to server
         2003, // Can't connect to MySQL server
         2006, // MySQL server has gone away
@@ -30,72 +35,40 @@ public sealed class MySqlExceptionTranslator : IOrmExceptionTranslator
     ];
 
     /// <inheritdoc />
-    public OrmDbExceptionTranslation Translate(Exception exception)
+    protected override bool IsProviderException(Exception exception) => exception is MySqlException;
+
+    /// <inheritdoc />
+    protected override OrmDbExceptionTranslation TranslateProviderException(Exception providerException)
     {
-        if (TryGetMySqlErrorNumber(exception, out int number))
-        {
-            if (number is 1062 or 1451 or 1452)
-                return new OrmDbExceptionTranslation(OrmErrors.Conflict(), false, number.ToString());
+        var mySql = (MySqlException)providerException;
+        int number = mySql.Number;
+        string code = number.ToString(CultureInfo.InvariantCulture);
 
-            if (number is 1213 or 1205)
-                return new OrmDbExceptionTranslation(OrmErrors.Concurrency(), false, number.ToString());
-
-            if (number is 1317 or 1801 or 1907)
-                return new OrmDbExceptionTranslation(OrmErrors.Timeout(), true, number.ToString());
-
-            if (ConnectionErrors.Contains(number))
-                return new OrmDbExceptionTranslation(OrmErrors.ConnectionUnavailable(), true, number.ToString());
-
-            return new OrmDbExceptionTranslation(OrmErrors.Failure(), false, number.ToString());
-        }
-
-        if (exception is TimeoutException)
-            return new OrmDbExceptionTranslation(OrmErrors.Timeout(), true, null);
-
-        return new OrmDbExceptionTranslation(OrmErrors.Failure(), false, null);
+        if (number is DuplicateEntry or DuplicateEntryWithKeyName or 1451 or 1452)
+            return new OrmDbExceptionTranslation(OrmErrors.Conflict(), false, code);
+        if (number is 1213 or 1205)
+            return new OrmDbExceptionTranslation(OrmErrors.Concurrency(), false, code);
+        // 1317: consulta interrompida; 3024: max_execution_time; 0 + TimeoutException: tempo do comando no cliente
+        if (number is 1317 or 3024 or 1801 or 1907 || (number == 0 && mySql.InnerException is TimeoutException))
+            return new OrmDbExceptionTranslation(OrmErrors.Timeout(), true, code);
+        if (ConnectionErrors.Contains(number))
+            return new OrmDbExceptionTranslation(OrmErrors.ConnectionUnavailable(), true, code);
+        return new OrmDbExceptionTranslation(OrmErrors.Failure(), false, code);
     }
 
     /// <inheritdoc />
-    public bool IsTransient(Exception exception)
-    {
-        if (TryGetMySqlErrorNumber(exception, out int number))
-            return TransientErrors.Contains(number);
-
-        return false;
-    }
+    protected override bool IsTransientProviderException(Exception providerException) =>
+        TransientErrors.Contains(((MySqlException)providerException).Number);
 
     /// <inheritdoc />
-    public bool IsConnectionFailure(Exception exception)
-    {
-        if (TryGetMySqlErrorNumber(exception, out int number))
-            return ConnectionErrors.Contains(number);
+    protected override bool IsConnectionFailureProviderException(Exception providerException) =>
+        ConnectionErrors.Contains(((MySqlException)providerException).Number);
 
-        return false;
-    }
+    /// <inheritdoc />
+    protected override bool IsUniqueViolationProviderException(Exception providerException) =>
+        ((MySqlException)providerException).Number is DuplicateEntry or DuplicateEntryWithKeyName;
 
-    private static bool TryGetMySqlErrorNumber(Exception exception, out int number)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is MySqlException mySqlEx)
-            {
-                number = mySqlEx.Number;
-                return true;
-            }
-
-            // Suporte compatível com o provedor MySql.Data / MySql.EntityFrameworkCore (Oracle) no .NET 10
-            if (current is DbException dbEx && current.GetType().Name == "MySqlException")
-            {
-                var prop = current.GetType().GetProperty("Number");
-                if (prop?.GetValue(current) is int num)
-                {
-                    number = num;
-                    return true;
-                }
-            }
-        }
-
-        number = 0;
-        return false;
-    }
+    /// <inheritdoc />
+    protected override string? GetErrorCode(Exception providerException) =>
+        ((MySqlException)providerException).Number.ToString(CultureInfo.InvariantCulture);
 }

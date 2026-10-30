@@ -5,12 +5,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
 using TEC.ORM.Specifications;
-using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Internal;
-using TEC.ORM.SqlServer.SoftDelete;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 using TEC.ORM.Tests.Integration;
@@ -90,32 +90,50 @@ public class DosResistanceTests
 
     // ---------- Repositório: nada é materializado além do limite ----------
 
-    /// <summary>Conta as entidades materializadas pelo EF Core (prova de que a busca não carrega tudo para depois recusar).</summary>
+    /// <summary>
+    /// Conta as entidades materializadas pelo EF Core, por contexto (prova de que a busca não carrega tudo para depois recusar).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IMaterializationInterceptor"/> é um <c>ISingletonInterceptor</c>: entra na chave do provedor de serviços interno
+    /// do EF, e uma instância nova por contexto criaria um provedor por teste (o EF lança ManyServiceProvidersCreatedWarning
+    /// passado o vigésimo no processo). Por isso uma instância única, com a contagem separada por contexto.
+    /// </remarks>
     private sealed class MaterializationCounter : IMaterializationInterceptor
     {
-        private int _count;
+        public static readonly MaterializationCounter Shared = new();
 
-        public int Count => _count;
+        private readonly ConditionalWeakTable<DbContext, StrongBox<int>> _counts = new();
+
+        private MaterializationCounter()
+        {
+        }
+
+        public int CountFor(DbContext context) => _counts.TryGetValue(context, out var count) ? Volatile.Read(ref count.Value) : 0;
 
         public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
         {
-            Interlocked.Increment(ref _count);
+            Interlocked.Increment(ref _counts.GetValue(materializationData.Context, _ => new StrongBox<int>()).Value);
             return entity;
         }
     }
 
-    private static async Task<(CodeFirstContext Context, MaterializationCounter Counter, IOrmRepository<Customer, Guid> Customers)> SeedAsync(int rows,
-        Action<SqlServer.Configuration.OrmOptions>? configure = null)
+    /// <summary>Contagem de materializações de um contexto.</summary>
+    private sealed class ContextCounter(DbContext context)
     {
-        var counter = new MaterializationCounter();
+        public int Count => MaterializationCounter.Shared.CountFor(context);
+    }
+
+    private static async Task<(CodeFirstContext Context, ContextCounter Counter, IOrmRepository<Customer, Guid> Customers)> SeedAsync(int rows,
+        Action<EntityFrameworkCore.Configuration.OrmOptions>? configure = null)
+    {
         var context = new CodeFirstContext(new DbContextOptionsBuilder<CodeFirstContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
-            .AddInterceptors(new SoftDeleteInterceptor(TimeProvider.System), counter)
+            .AddInterceptors(new SoftDeleteInterceptor(TimeProvider.System), MaterializationCounter.Shared)
             .Options);
         context.Customers.AddRange(Enumerable.Range(0, rows).Select(i => new Customer { Name = $"Customer {i}", Email = $"c{i}@exemplo.com" }));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
-        return (context, counter, TestOrm.Orm<Customer, Guid>(context, TestOrm.Options(configure)));
+        return (context, new ContextCounter(context), TestOrm.Orm<Customer, Guid>(context, TestOrm.Options(configure)));
     }
 
     [Test]

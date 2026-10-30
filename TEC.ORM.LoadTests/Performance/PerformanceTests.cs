@@ -41,7 +41,7 @@ public class PerformanceTests
         var accounts = orm.Orm<Account, Guid>(context);
         var id = (await context.Accounts.AsNoTracking().FirstAsync()).Id;
 
-        // Orçamentos com folga (cerca do dobro do medido no .NET 8 e no .NET 10: ~1,4 KB, ~4,3 KB, ~15,4 KB, ~15,4 KB e ~2,4 KB a
+        // Orçamentos com folga (cerca do dobro do medido no .NET 10: ~1,4 KB, ~4,3 KB, ~15,4 KB, ~15,4 KB e ~2,4 KB a
         // mais que o EF Core puro por operação): pegam regressões grosseiras no caminho do
         // ORM (reflexão por chamada, logs montados sem necessidade, cópias de listas), não medem a máquina
         (string Scenario, long Budget, Func<Task> Orm, Func<Task> Raw)[] scenarios =

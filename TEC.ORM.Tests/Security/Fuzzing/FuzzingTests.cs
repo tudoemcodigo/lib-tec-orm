@@ -5,12 +5,12 @@ using FsCheck.Fluent;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
 using TEC.ORM.SqlServer.Internal;
-using TEC.ORM.SqlServer.Security;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 

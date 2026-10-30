@@ -31,13 +31,13 @@
 flowchart LR
     subgraph PR["🔀 ci.yml → dotnet-ci.yml (PR / push na main)"]
         direction LR
-        CV["convenções"] ~~~ BP["build + pack<br/><sub>2 pacotes</sub>"] ~~~ U["TEC.ORM.Tests<br/>net10.0 · net8.0 · sem ICU"]
+        CV["convenções"] ~~~ BP["build + pack<br/><sub>6 pacotes</sub>"] ~~~ U["TEC.ORM.Tests<br/>net10.0 · net10.0 sem ICU"]
         IT["integração<br/><sub>SQL Server em container<br/>[Integracao]</sub>"] ~~~ CQ["CodeQL"] ~~~ OK["✅ ci-ok"]
-        OK -- "só push na main" --> PV["📦 publicar-previa<br/><sub>X.Y.Z-preview.N · 2 pacotes</sub>"]
+        OK -- "só push na main" --> PV["📦 publicar-previa<br/><sub>X.Y.Z-preview.N · 6 pacotes</sub>"]
     end
     subgraph REL["⌨️ release.yml → dotnet-release.yml"]
         direction LR
-        V["validar versão<br/><sub>X.Y.Z ou X.Y.Z-rc.N</sub>"] --> G["convenções · pack ·<br/>unit ×3 + cobertura · CodeQL"] --> TAG["🏷️ tag + Release"] --> PUB["📦 GitHub Packages<br/>2 pacotes, mesma versão"]
+        V["validar versão<br/><sub>X.Y.Z ou X.Y.Z-rc.N</sub>"] --> G["convenções · pack ·<br/>unit ×2 + cobertura · CodeQL"] --> TAG["🏷️ tag + Release"] --> PUB["📦 GitHub Packages<br/>6 pacotes, mesma versão"]
     end
     subgraph PERF["⌨️ performance.yml (só manual, SQL Server em container)"]
         RA["rapida<br/><sub>[Carga-CI]</sub>"] ~~~ HV["pesados<br/><sub>[Carga-Pesada] + [Seguranca-Pesada]</sub>"] ~~~ BM["benchmarks (opcional)<br/><sub>dotnet-benchmark.yml</sub>"]
@@ -50,7 +50,7 @@ flowchart LR
 | `push` na `main` (merge) | `ci.yml` | O mesmo, **com** o login OIDC (integração também lendo a conexão do Key Vault de testes), e, com `ci-ok` verde, `publicar-previa` | ✅ `<Version>-preview.N` |
 | `schedule` segunda 06:00 UTC / manual | `ci.yml` | O mesmo na `main`, **com** o login OIDC: integração também lendo a conexão do Key Vault de testes; CodeQL e auditoria com consultas/vulnerabilidades novas | ❌ |
 | Manual (**Performance**) | `performance.yml` | Input `suite`: `pesadas` (padrão), `rapida` (`Carga-CI`) ou `todas`; benchmarks opcionais | ❌ |
-| Manual (**Publicar versão**) | `release.yml` | Convenções, pack, unitários ×3 + cobertura e CodeQL, depois tag, Release e push dos 2 pacotes | ✅ `X.Y.Z` ou `-rc.N` |
+| Manual (**Publicar versão**) | `release.yml` | Convenções, pack, unitários ×2 + cobertura e CodeQL, depois tag, Release e push dos 6 pacotes | ✅ `X.Y.Z` ou `-rc.N` |
 
 Os testes de carga não rodam no PR nem na publicação: tempo de parede em runner compartilhado é ruidoso e não pode
 bloquear PR nem versão.
@@ -65,9 +65,9 @@ bloquear PR nem versão.
 
 | Arquivo | Função |
 |---|---|
-| [`ci.yml`](ci.yml) | Validação de PR, do push na `main` (com publicação da prévia) e semanal na `main`, com `dotnet-ci.yml@v2` |
-| [`release.yml`](release.yml) | Publicação de versão estável ou `-rc.N`, com `dotnet-release.yml@v2` |
-| [`performance.yml`](performance.yml) | Testes de carga só sob demanda, manual (`dotnet-test.yml@v2`), e benchmarks (`dotnet-benchmark.yml@v2`) |
+| [`ci.yml`](ci.yml) | Validação de PR, do push na `main` (com publicação da prévia) e semanal na `main`, com `dotnet-ci.yml@v1` |
+| [`release.yml`](release.yml) | Publicação de versão estável ou `-rc.N`, com `dotnet-release.yml@v1` |
+| [`performance.yml`](performance.yml) | Testes de carga só sob demanda, manual (`dotnet-test.yml@v1`), e benchmarks (`dotnet-benchmark.yml@v1`) |
 | [`../scripts/integration-setup.sh`](../scripts/integration-setup.sh) | Sobe o SQL Server descartável (integração e `performance.yml`) e, na `main`, cria o segredo temporário no Key Vault |
 | [`../scripts/integration-teardown.sh`](../scripts/integration-teardown.sh) | Apaga e purga o segredo e remove o container (sempre, mesmo com falha) |
 | [`../dependabot.yml`](../dependabot.yml) · [`../zizmor.yml`](../zizmor.yml) | Canônicos do tec-workflows (não editar aqui) |
@@ -83,23 +83,24 @@ bloquear PR nem versão.
 | `unit-tests` | `TEC.ORM.Tests /*/*/*/*[Category!=Integracao]` |
 | `integration-tests` | `TEC.ORM.Tests /*/*/*/*[Category=Integracao]` |
 | `integration-setup` / `integration-teardown` | `.github/scripts/integration-setup.sh` / `integration-teardown.sh` |
-| `azure-client-id` / `azure-tenant-id` | `vars.AZURE_CLIENT_ID` / `vars.TEC_TESTES_TENANT_ID` |
+| `azure-client-id` / `azure-tenant-id` | `vars.AZURE_CLIENT_ID` só se `vars.TEC_ENABLE_AZURE_INTEGRATION` estiver definida (senão vazio, e o login OIDC não acontece) / `vars.TEC_TESTES_TENANT_ID` |
 | `azure-env` | `TEC_TESTES_VAULT_URI` e `TEC_TESTES_TENANT_ID`, aplicadas **só depois** do login no Azure |
 
-- Unitários em matriz: `net10.0` (com cobertura), `net8.0` e `net10.0` sem ICU.
+- Unitários em matriz: `net10.0` (com cobertura) e `net10.0` sem ICU.
 - Gatilhos: `pull_request` e `merge_group` para a `main`, `push` na `main`, `schedule` (segunda 06:00 UTC) e manual.
 - Sem testes de carga: a `Carga-CI` (que precisa do SQL Server) roda só no job `rapida` do `performance.yml`, com os
   mesmos scripts de setup/teardown.
 - Permissões: `contents: read` no topo; o job recebe `pull-requests`, `actions`, `security-events` (leitura),
   `packages: write` (só o `publicar-previa` publica, no push na `main`) e `id-token: write` (OIDC, usado só na `main`
   fora de PR).
-- No push na `main`, depois do `ci-ok` verde, o job `publicar-previa` publica os 2 pacotes como
+- No push na `main`, depois do `ci-ok` verde, o job `publicar-previa` publica os 6 pacotes como
   `<Version do Directory.Build.props>-preview.N` (N sequencial por versão, reinicia a cada nova `<Version>`; ex.: `0.0.1-preview.3`). Se a tag `v<Version>` já existe,
   o CI não falha: valida tudo normalmente, o `build + pack` emite um `::notice::` e o `publicar-previa` é pulado (suba a
   `<Version>` para voltar a gerar prévias). Em PR nada é publicado.
 - `concurrency` por ref no PR, cancelando execuções antigas do mesmo PR; fora de PR, um grupo por execução (nenhum push na `main` perde a prévia). PR só de documentação (docs, LICENSE, CHANGELOG,
-  READMEs de `.github/`) pula os jobs pesados; os READMEs das pastas `TEC.ORM/` e `TEC.ORM.SqlServer/` vão no `.nupkg` e
-  **não** contam como só documentação.
+  READMEs de `.github/`) pula os jobs pesados; os READMEs das pastas dos seis pacotes (`TEC.ORM/`, `TEC.ORM.EntityFrameworkCore/`,
+  `TEC.ORM.SqlServer/`, `TEC.ORM.PostgreSql/`, `TEC.ORM.MySql/` e `TEC.ORM.Oracle/`) vão no `.nupkg` e **não** contam como só
+  documentação.
 
 ---
 
@@ -132,6 +133,7 @@ sequenceDiagram
 |---|---|
 | SQL Server | `mcr.microsoft.com/mssql/server` fixado por digest (`2022-CU27-GDR1-ubuntu-22.04`, atualizado à mão: o Dependabot não lê scripts), só em `127.0.0.1:1433`, senha `Tec1!` + 32 hex aleatórios por execução, passada por variável de ambiente (fora da linha de comando) e mascarada |
 | Banco | `tec_testes` com `READ_COMMITTED_SNAPSHOT ON` (como no Azure SQL) |
+| PostgreSQL, MySQL e Oracle | Sem container no CI: os testes de integração desses bancos (`ProviderIntegrationTests`) se pulam com motivo, porque `TEC_TESTES_ORM_PG_CONEXAO`, `TEC_TESTES_ORM_MYSQL_CONEXAO` e `TEC_TESTES_ORM_ORACLE_CONEXAO` não são definidas |
 | PR | Conexão em `TEC_TESTES_ORM_SQL_CONEXAO`, entregue ao TEC.Vault em memória; o teste do Key Vault se pula com motivo |
 | `main` (OIDC) | A mesma conexão gravada num segredo **temporário e exclusivo da execução** (`tec-testes-sql-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT`, expiração de 1 dia) e lida pelo TEC.Vault.AzureKeyVault, como em produção |
 | Limpeza | O teardown apaga e purga o segredo (sem permissão de purga, ele expira sozinho) e remove o container |
@@ -148,9 +150,9 @@ saem do `ci.yml` no push na `main`).
 | `version` | `${{ inputs.versao }}` |
 | `solution` / `private-feed` / `unit-tests` | Os mesmos do `ci.yml` |
 
-Sequência: valida a versão (disparo **da `main`**; a tag `vX.Y.Z` não pode existir) → convenções, pack, unitários ×3
-(com relatório de cobertura) e CodeQL em paralelo → só com **todos** verdes cria a tag e o Release e publica os 2
-pacotes. Sem integração (já passou no PR e no push da `main`), sem SQL Server e sem carga.
+Sequência: valida a versão (disparo **da `main`**; a tag `vX.Y.Z` não pode existir) → convenções, pack, unitários ×2
+(`net10.0` com relatório de cobertura e `net10.0` sem ICU) e CodeQL em paralelo → só com **todos** verdes cria a tag e o
+Release e publica os 6 pacotes. Sem integração (já passou no PR e no push da `main`), sem SQL Server e sem carga.
 `concurrency: publicar-versao`, sem cancelamento. Permissões: `contents: write`, `packages: write`,
 `actions`/`security-events: read`, `id-token: write`.
 
@@ -176,7 +178,7 @@ compartilhado é ruidoso e não pode bloquear PR nem versão.
 - Job `pesados` (`dotnet-test.yml`): `TEC.ORM.LoadTests [Carga-Pesada]` e `TEC.ORM.Tests [Seguranca-Pesada]`, com o SQL
   Server dos mesmos scripts, `timeout-minutes: 120` e artefato `pesados`. O relatório `carga.md` (em
   `TEC_CARGA_RELATORIOS`, definido pelo CI) vai para o resumo da execução.
-- Job `benchmarks` (`dotnet-benchmark.yml`): `TEC.ORM.Benchmarks`, `net8.0` × `net10.0`, só quando `benchmarks = true`.
+- Job `benchmarks` (`dotnet-benchmark.yml`): `TEC.ORM.Benchmarks` no `net10.0`, só quando `benchmarks = true`.
 
 > [!TIP]
 > Runner compartilhado tem ruído: compare **tendências** entre execuções, não números absolutos.
@@ -189,6 +191,7 @@ Configurados **na organização** `tudoemcodigo` (*Settings → Secrets and vari
 
 | Nome | Tipo | Uso |
 |---|---|---|
+| `TEC_ENABLE_AZURE_INTEGRATION` | Variable | Qualquer valor não vazio liga o login OIDC do `ci.yml` (sem ela, `azure-client-id` fica vazio e a integração se pula) |
 | `AZURE_CLIENT_ID` | Variable | Application ID da aplicação federada de CI (OIDC) |
 | `TEC_TESTES_TENANT_ID` | Variable | Tenant do login e do cofre de testes |
 | `TEC_TESTES_VAULT_URI` | Variable | URI do Key Vault exclusivo de testes (`https://<cofre-de-testes>.vault.azure.net/`) |
@@ -230,10 +233,14 @@ OIDC.
 | Pacote publicado | Pasta | Observação |
 |---|---|---|
 | `TEC.ORM` | `TEC.ORM/` | Inclui o gerador `TEC.ORM.Mapping.Generator` em `analyzers/dotnet/cs` |
+| `TEC.ORM.EntityFrameworkCore` | `TEC.ORM.EntityFrameworkCore/` | Base dos provedores PostgreSQL, MySQL e Oracle |
 | `TEC.ORM.SqlServer` | `TEC.ORM.SqlServer/` | — |
+| `TEC.ORM.PostgreSql` | `TEC.ORM.PostgreSql/` | — |
+| `TEC.ORM.MySql` | `TEC.ORM.MySql/` | — |
+| `TEC.ORM.Oracle` | `TEC.ORM.Oracle/` | — |
 
 > [!IMPORTANT]
-> Os dois pacotes saem sempre juntos e com a **mesma versão**: o satélite usa internos do núcleo (`InternalsVisibleTo`).
+> Os seis pacotes saem sempre juntos e com a **mesma versão**: os satélites usam internos do núcleo (`InternalsVisibleTo`).
 > O GitHub Packages não permite sobrescrever uma versão publicada.
 
 ---

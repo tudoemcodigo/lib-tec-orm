@@ -24,9 +24,12 @@
 
 ## 🎯 Quando usar
 
-Projetos de domínio e de aplicação, e todo projeto que declara DTOs com `[MapFrom]`. A implementação para SQL Server fica
-no pacote [`TEC.ORM.SqlServer`](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/TEC.ORM.SqlServer/README.md), no
-projeto de infraestrutura/host.
+Projetos de domínio e de aplicação, e todo projeto que declara DTOs com `[MapFrom]`. A implementação fica num pacote por
+banco, no projeto de infraestrutura/host:
+[`TEC.ORM.SqlServer`](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/TEC.ORM.SqlServer/README.md),
+[`TEC.ORM.PostgreSql`](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/TEC.ORM.PostgreSql/README.md),
+[`TEC.ORM.MySql`](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/TEC.ORM.MySql/README.md) ou
+[`TEC.ORM.Oracle`](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/TEC.ORM.Oracle/README.md).
 
 ## 📥 Instalação
 
@@ -36,9 +39,10 @@ dotnet add package TEC.ORM --version 0.0.1
 ```
 
 > [!IMPORTANT]
-> **Use o `TEC.ORM.SqlServer` na mesma versão deste pacote.** O satélite usa tipos internos do núcleo
-> (`InternalsVisibleTo`) e os dois são publicados juntos; versões diferentes podem falhar em execução
-> (`MissingMethodException`, `TypeLoadException`). Requer Visual Studio 17.12 / .NET SDK 9.0.100 ou mais novo (gerador).
+> **Use o pacote do seu banco (`TEC.ORM.SqlServer`, `TEC.ORM.PostgreSql`, `TEC.ORM.MySql` ou `TEC.ORM.Oracle`) e o
+> `TEC.ORM.EntityFrameworkCore` na mesma versão deste pacote.** Os satélites usam tipos internos do núcleo
+> (`InternalsVisibleTo`) e todos são publicados juntos; versões diferentes podem falhar em execução
+> (`MissingMethodException`, `TypeLoadException`). Requer o .NET SDK 10 (o pacote é só `net10.0`; o Roslyn 4.12 é apenas o mínimo do gerador).
 
 ## 🚀 Início rápido
 
@@ -73,4 +77,4 @@ public sealed class CustomerService(IOrmRepository<Customer, Guid> customers)
 Repositório, especificações, consultas SQL, mapeamento e diagnósticos:
 [docs/README.md](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/docs/README.md).
 
-`net8.0` e `net10.0` · Native AOT · [MIT](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/LICENSE) · Roberto Oliveira, equipe Tudo em Código
+`net10.0` · Native AOT · [Apache 2.0](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/LICENSE) · Roberto Oliveira, equipe Tudo em Código

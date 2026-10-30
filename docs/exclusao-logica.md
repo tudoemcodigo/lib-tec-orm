@@ -45,7 +45,7 @@ sequenceDiagram
 | Peça | Comportamento |
 |---|---|
 | `SoftDeleteInterceptor` (interno) | Ao salvar, toda entrada `ISoftDelete` com estado `Deleted` (por `Remove`, cascata ou repositório) volta a `Unchanged` e só `IsDeleted`/`DeletedAt` são gravados, com [propagação](#propagação). A hora vem do `TimeProvider` e é a mesma em todo o salvamento |
-| `SoftDeleteQueryFilterConvention` (interna) | Ao **finalizar o modelo**, adiciona `!IsDeleted` a toda entidade raiz `ISoftDelete`. **EF Core 8:** filtro anônimo combinado com **E** ao da entidade. **EF Core 10:** filtro **nomeado** `TecOrm.SoftDelete`, que convive com os filtros nomeados da aplicação (se a aplicação usar filtro anônimo, ele é combinado com E). Idempotente; em herança fica só na raiz; *owned* seguem o dono |
+| `SoftDeleteQueryFilterConvention` (interna) | Ao **finalizar o modelo**, adiciona `!IsDeleted` a toda entidade raiz `ISoftDelete`, como filtro **nomeado** `TecOrm.SoftDelete` do EF Core 10, que convive com os filtros nomeados da aplicação (se a aplicação usar filtro anônimo, ele é combinado com E). Também escreve o filtro do índice de `HasSoftDelete` na sintaxe do banco. Idempotente; em herança fica só na raiz; *owned* seguem o dono |
 | `OrmRepository.CreateAsync` / `UpdateAsync` | Criação nunca nasce excluída; atualização mantém `IsDeleted`/`DeletedAt` fora do `UPDATE` e não reativa filhos |
 | Projeção para DTO | O filtro vale também dentro das coleções aninhadas |
 | Relação obrigatória | Item removido de uma coleção (ex.: `ApplyTo` com `Sync`) vira órfão para o EF Core e é gravado como exclusão lógica |
@@ -77,18 +77,18 @@ public sealed class Customer : Entity<Guid>
 
 ### Contexto: OrmDbContext e convenções
 
-> `TEC.ORM.SqlServer.SoftDelete` · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore.SoftDelete` · pacote `TEC.ORM.EntityFrameworkCore` (o mesmo nos quatro provedores)
 
 | Membro | Retorno | Descrição |
 |---|---|---|
-| `OrmDbContext` (`abstract class`) | — | Base opcional: chama `AddTecOrmConventions()` em `ConfigureConventions` (ao sobrescrever, chame `base`) |
-| `AddTecOrmConventions(this ModelConfigurationBuilder builder)` | `ModelConfigurationBuilder` | Filtro global de exclusão lógica e tamanho das colunas de auditoria |
-| `HasSoftDelete<TEntity>(this EntityTypeBuilder<TEntity> builder, bool index = true)` | `EntityTypeBuilder<TEntity>` | `IsDeleted` com padrão `false`, `DeletedAt` mapeado e, com `index`, índice filtrado `[IsDeleted] = 0` |
-| `SoftDeleteFilterName` | `const string` = `"TecOrm.SoftDelete"` | Nome do filtro no EF Core 10: `IgnoreQueryFilters([OrmModelConfigurationExtensions.SoftDeleteFilterName])` desliga só ele |
+| `OrmDbContext` (`abstract class`) | — | Base opcional: chama `AddTecOrmConventions()` em `ConfigureConventions` (ao sobrescrever, chame `base`). O registro `AddTecOrm*` já aplica as convenções mesmo sem ela |
+| `AddTecOrmConventions(this ModelConfigurationBuilder builder)` | `ModelConfigurationBuilder` | Filtro global de exclusão lógica, tamanho das colunas de auditoria, tabela da trilha histórica e collation da idempotência |
+| `HasSoftDelete<TEntity>(this EntityTypeBuilder<TEntity> builder, bool index = true)` | `EntityTypeBuilder<TEntity>` | `IsDeleted` com padrão `false`, `DeletedAt` mapeado e, com `index`, índice de `IsDeleted` filtrado por "não excluído" na sintaxe do banco: `[IsDeleted] = 0` no SQL Server, `"IsDeleted" = FALSE` no PostgreSQL; no MySQL e no Oracle, que não têm índice filtrado, o índice fica sem filtro |
+| `SoftDeleteFilterName` | `const string` = `"TecOrm.SoftDelete"` | Nome do filtro: `IgnoreQueryFilters([OrmModelConfigurationExtensions.SoftDeleteFilterName])` desliga só ele |
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
-using TEC.ORM.SqlServer.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 
 public sealed class SalesContext(DbContextOptions<SalesContext> options) : OrmDbContext(options)
 {
@@ -192,7 +192,7 @@ Não há opções em `OrmOptions` para a exclusão lógica: ela é sempre ligada
 
 | Parâmetro | Padrão | Descrição |
 |---|---|---|
-| `HasSoftDelete(index)` | `true` | Cria o índice filtrado `[IsDeleted] = 0`, com o nome real da coluna (`HasColumnName`) aplicado pelas convenções. Esse índice sobre o `bit` quase nunca é usado: prefira `index: false` e índices das **colunas de busca** filtrados por `[IsDeleted] = 0` (ex.: `HasIndex(c => c.Email).IsUnique().HasFilter("[IsDeleted] = 0")`). O padrão segue `true` para não gerar migration de remoção |
+| `HasSoftDelete(index)` | `true` | Cria o índice de `IsDeleted` filtrado por "não excluído" na sintaxe do banco (`[IsDeleted] = 0` no SQL Server, `"IsDeleted" = FALSE` no PostgreSQL; sem filtro no MySQL e no Oracle), com o nome real da coluna (`HasColumnName`) aplicado pelas convenções. Esse índice sobre a coluna booleana quase nunca é usado: prefira `index: false` e índices das **colunas de busca** filtrados por "não excluído" (ex., no SQL Server: `HasIndex(c => c.Email).IsUnique().HasFilter("[IsDeleted] = 0")`). O padrão segue `true` para não gerar migration de remoção |
 
 ---
 
@@ -223,8 +223,8 @@ Não há opções em `OrmOptions` para a exclusão lógica: ela é sempre ligada
 <details>
 <summary>Posso usar o meu próprio filtro de inquilino junto?</summary>
 
-Sim. No EF Core 10 use um filtro **nomeado** (`HasQueryFilter("Tenant", ...)`), que convive com o `TecOrm.SoftDelete`; no
-EF Core 8 o filtro anônimo da aplicação é combinado com E. A exclusão física e `IncludingSoftDeleted()` mantêm o seu filtro.
+Sim. Use um filtro **nomeado** (`HasQueryFilter("Tenant", ...)`), que convive com o `TecOrm.SoftDelete`; um filtro anônimo
+da aplicação é combinado com E. A exclusão física e `IncludingSoftDeleted()` mantêm o seu filtro.
 
 </details>
 

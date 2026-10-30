@@ -1,15 +1,15 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.LoadTests.Infrastructure;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
 using TEC.ORM.Specifications;
-using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.Internal;
-using TEC.ORM.SqlServer.Security;
 using TEC.Vault.Abstractions;
 using TEC.Vault.DependencyInjection;
 using TEC.Vault.InMemory;
@@ -157,7 +157,7 @@ public class ConcurrencyTests
     [Test]
     public async Task OperationRunner_HashedIdentifiers_AreDeterministicAcrossThreads()
     {
-        var logger = new SqlServer.Diagnostics.OrmOperationRunner(NullLogger<SqlServer.Diagnostics.OrmOperationRunner>.Instance,
+        var logger = new EntityFrameworkCore.Diagnostics.OrmOperationRunner(NullLogger<EntityFrameworkCore.Diagnostics.OrmOperationRunner>.Instance,
             new OrmOptions { ConnectionSecretName = "x", IdentifierLogMode = IdentifierLogMode.Hashed });
         var expected = Enumerable.Range(0, 1_000).Select(i => logger.FormatIdentifier($"cpf-{i:D11}")).ToArray();
         var divergences = new Divergences();

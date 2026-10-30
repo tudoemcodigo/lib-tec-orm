@@ -12,10 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\TEC.ORM.EntityFrameworkCore\TEC.ORM.EntityFrameworkCore.csproj" />
   </ItemGroup>
 

@@ -9,7 +9,7 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 
-  <!-- EF Core acompanha o runtime: 8.x no net8.0 e 10.x no net10.0 (ambos LTS) -->
+  <!-- EF Core acompanha o runtime (net10.0 -> EF Core 10) -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
@@ -17,10 +17,6 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Polly.Core" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
   </ItemGroup>
 
   <!-- Satélites da mesma família com acesso aos tipos internos -->

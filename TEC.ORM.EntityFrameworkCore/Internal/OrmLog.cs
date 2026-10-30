@@ -3,7 +3,11 @@ using Microsoft.Extensions.Logging;
 namespace TEC.ORM.EntityFrameworkCore.Internal;
 
 /// <summary>
-/// Mensagens de log estruturado do TEC.ORM.
+/// Mensagens de log do TEC.ORM (source generator: sem alocação quando o nível está desabilitado).
+/// Segurança: nunca registra string de conexão, SQL, valores de parâmetros ou de colunas, nem a mensagem original do banco
+/// (que pode conter o valor de uma chave duplicada); apenas provedor, operação, alvo, identificador (conforme
+/// <c>IdentifierLogMode</c>), duração e códigos. Escritas são registradas em Information (trilha de auditoria); a exclusão
+/// física, em Warning (alerta: remoção irreversível).
 /// </summary>
 internal static partial class OrmLog
 {
@@ -24,9 +28,9 @@ internal static partial class OrmLog
         string errorCode, long elapsedMilliseconds);
 
     [LoggerMessage(3004, LogLevel.Error,
-        "ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, SQL {SqlErrorNumber}) em {ElapsedMilliseconds} ms.")]
+        "ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, erro do banco {DatabaseErrorCode}) em {ElapsedMilliseconds} ms.")]
     public static partial void InfrastructureFailure(ILogger logger, string provider, string operation, string target, string identifier,
-        string errorCode, string exceptionType, string sqlErrorNumber, long elapsedMilliseconds);
+        string errorCode, string exceptionType, string databaseErrorCode, long elapsedMilliseconds);
 
     [LoggerMessage(3005, LogLevel.Error, "ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}.")]
     public static partial void UnexpectedException(ILogger logger, Exception exception, string provider, string operation, string target,
@@ -41,9 +45,9 @@ internal static partial class OrmLog
         string actor, string rows, long elapsedMilliseconds);
 
     [LoggerMessage(3008, LogLevel.Warning,
-        "ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (SQL {SqlErrorNumber}); nova tentativa {Retry} de {MaxRetries}.")]
+        "ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}.")]
     public static partial void TransientFailureRetry(ILogger logger, string provider, string operation, string target, string errorCode,
-        string sqlErrorNumber, int retry, int maxRetries);
+        string databaseErrorCode, int retry, int maxRetries);
 
     // ---------- Conexão (TEC.Vault) ----------
 
@@ -53,10 +57,11 @@ internal static partial class OrmLog
     [LoggerMessage(3101, LogLevel.Error, "ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}.")]
     public static partial void SecretRejected(ILogger logger, string kind, string reason);
 
-    [LoggerMessage(3102, LogLevel.Error, "ORM: falha ao abrir a conexão {Kind} ({ExceptionType}).")]
-    public static partial void ConnectionOpenFailed(ILogger logger, string kind, string exceptionType);
+    [LoggerMessage(3102, LogLevel.Error, "ORM: falha ao abrir a conexão {Kind} ({ExceptionType}, erro do banco {DatabaseErrorCode}).")]
+    public static partial void ConnectionOpenFailed(ILogger logger, string kind, string exceptionType, string databaseErrorCode);
 
-    [LoggerMessage(3103, LogLevel.Warning, "ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento).")]
+    [LoggerMessage(3103, LogLevel.Warning,
+        "ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento).")]
     public static partial void TrustServerCertificateEnabled(ILogger logger, string kind);
 
     [LoggerMessage(3104, LogLevel.Warning, "Health check do ORM falhou: {ErrorCode}.")]

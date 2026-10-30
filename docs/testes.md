@@ -35,11 +35,14 @@
 
 | Categoria (`[Category]`) | Projeto | Onde roda | Conteúdo | Quantidade |
 |---|---|---|---|---|
-| *(sem categoria)* | `TEC.ORM.Tests` | PR, push na `main` e publicação, matriz `net10.0` / `net8.0` / sem ICU | Unitários, regressão, segurança rápida, gerador | **288** (`net10.0`) · **286** (`net8.0`) |
-| `Integracao` | `TEC.ORM.Tests` | PR e main, job com SQL Server em container | Tudo que usa banco | **40** + 1 pulado fora da main (Key Vault) |
-| `Carga-CI` | `TEC.ORM.LoadTests` | `performance.yml` manual (`suite` = `rapida` ou `todas`), com SQL Server em container | Concorrência e fumaça de carga (segundos) | **13** |
-| `Carga-Pesada` | `TEC.ORM.LoadTests` | `performance.yml` manual (`suite` = `pesadas` ou `todas`; `[Explicit]`) | Sustentada, pool, volume, soak, escalabilidade | 5 |
-| `Seguranca-Pesada` | `TEC.ORM.Tests` | `performance.yml` manual (`suite` = `pesadas` ou `todas`; `[Explicit]`) | Fuzzing diferencial com 200 mil lotes | 1 |
+| *(sem categoria)* | `TEC.ORM.Tests` | PR, push na `main` e publicação, matriz `net10.0` / `net10.0` sem ICU | Unitários, regressão, segurança rápida, gerador, dialetos e registro de PostgreSQL/MySQL/Oracle | ver o relatório do `dotnet test` |
+| `Integracao` | `TEC.ORM.Tests` | PR e main, job com SQL Server em container | Tudo que usa banco: SQL Server no CI; PostgreSQL, MySQL e Oracle só com a conexão configurada | ver o relatório; 1 teste pula fora da main (Key Vault) e os de PostgreSQL, MySQL e Oracle pulam no CI |
+| `Carga-CI` | `TEC.ORM.LoadTests` | `performance.yml` manual (`suite` = `rapida` ou `todas`), com SQL Server em container | Concorrência e fumaça de carga (segundos) | ver o relatório |
+| `Carga-Pesada` | `TEC.ORM.LoadTests` | `performance.yml` manual (`suite` = `pesadas` ou `todas`; `[Explicit]`) | Sustentada, pool, volume, soak, escalabilidade | ver o relatório |
+| `Seguranca-Pesada` | `TEC.ORM.Tests` | `performance.yml` manual (`suite` = `pesadas` ou `todas`; `[Explicit]`) | Fuzzing diferencial com 200 mil lotes | ver o relatório |
+
+As contagens de testes foram retiradas desta tabela porque divergiam entre o README, o CHANGELOG e o AGENTS.md e não eram
+conferidas no código; o `dotnet test` mostra o número real de cada categoria e alvo.
 
 Os testes de carga não rodam no PR nem na publicação: tempo de parede em runner compartilhado é ruidoso e não pode
 bloquear PR nem versão.
@@ -50,7 +53,7 @@ namespace nem por variável liga/desliga.
 
 ```mermaid
 flowchart LR
-    PR["Pull request / push na main"] --> U["Unitários<br/>net10.0 · net8.0 · sem ICU"]
+    PR["Pull request / push na main"] --> U["Unitários<br/>net10.0 · net10.0 sem ICU"]
     REL["Publicar versão"] --> U
     PR --> IT["Job de integração<br/>SQL Server em container"]
     IT --> I1["TEC.ORM.Tests [Integracao]"]
@@ -76,17 +79,17 @@ flowchart LR
 dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category!=Integracao]"
 
 # Integração (pula com motivo sem conexão)
-dotnet test --project TEC.ORM.Tests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Integracao]"
+dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category=Integracao]"
 
 # Carga rápida (precisa do SQL Server para a maior parte)
-dotnet test --project TEC.ORM.LoadTests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Carga-CI]"
+dotnet test --project TEC.ORM.LoadTests -c Release --treenode-filter "/*/*/*/*[Category=Carga-CI]"
 
 # Pesados ([Explicit]: só rodam selecionados)
-dotnet test --project TEC.ORM.LoadTests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Carga-Pesada]"
-dotnet test --project TEC.ORM.Tests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Seguranca-Pesada]"
+dotnet test --project TEC.ORM.LoadTests -c Release --treenode-filter "/*/*/*/*[Category=Carga-Pesada]"
+dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category=Seguranca-Pesada]"
 
 # Sem ICU, como no CI
-DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 dotnet test --project TEC.ORM.Tests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category!=Integracao]"
+DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category!=Integracao]"
 ```
 
 ### SQL Server local descartável
@@ -103,7 +106,7 @@ docker exec -e SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" tec-orm-mssql /opt/mssql-tool
   -Q "CREATE DATABASE tec_testes; ALTER DATABASE tec_testes SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;"
 
 export TEC_TESTES_ORM_SQL_CONEXAO="Server=localhost,11433;Database=tec_testes;User ID=sa;Password=$MSSQL_SA_PASSWORD;Encrypt=True;TrustServerCertificate=True"
-dotnet test --project TEC.ORM.Tests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Integracao]"
+dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category=Integracao]"
 
 docker rm -f tec-orm-mssql
 ```
@@ -143,6 +146,35 @@ dotnet user-secrets set TecTestes:OrmSqlConexao "Server=localhost,11433;Database
 
 O banco é o da própria conexão: `Database` obrigatório e nunca de sistema (`master`, `model`, `msdb`, `tempdb`).
 
+### PostgreSQL, MySQL e Oracle
+
+Os testes de integração desses bancos (`Integration/ProviderIntegrationTests`, categoria `Integracao`) usam o mesmo
+`ProviderIntegrationContext` e o mesmo registro de produção (`AddTecOrmPostgreSql`, `AddTecOrmMySql`, `AddTecOrmOracle`; o
+caso do SQL Server usa a conexão acima). Cada banco tem a própria variável, lida como as do SQL Server (variável de
+ambiente, `dotnet user-secrets` ou `appsettings.Local.json`, seção `TecTestes`); sem ela, os testes daquele banco são
+pulados com o motivo:
+
+| Variável | Chave no user-secrets | Banco |
+|---|---|---|
+| `TEC_TESTES_ORM_PG_CONEXAO` | `OrmPgConexao` | PostgreSQL |
+| `TEC_TESTES_ORM_MYSQL_CONEXAO` | `OrmMySqlConexao` | MySQL / MariaDB |
+| `TEC_TESTES_ORM_ORACLE_CONEXAO` | `OrmOracleConexao` | Oracle |
+
+- A conexão passa pela política de produção: **TLS obrigatório**. Os testes ligam `AllowTrustServerCertificate` (certificado
+  autoassinado de container), o que aceita `SSL Mode=Require` no PostgreSQL, `SslMode=Required` no MySQL e
+  `SSL_SERVER_DN_MATCH=NO` no Oracle; servidor sem TLS (ou Oracle fora de `TCPS`) é recusado.
+- O usuário precisa criar tabelas no schema padrão dele: a preparação apaga e recria, uma vez por execução, as tabelas
+  `TecOrmIntNotas`, `TecOrmIntTrilha` e `TecOrmIntIdempotencia`.
+- No Oracle, o DDL usa a compatibilidade SQL padrão do provedor, a do 23ai (`BOOLEAN`).
+- Cobrem: autoria e trilha com a chave gerada pelo banco, conflito de unicidade traduzido, exclusão lógica com `DeletedBy`
+  e `SoftDeleted`, exclusão física com `Deleted`, consulta Dapper com o prefixo de parâmetro do dialeto (`:p0` no Oracle),
+  transação somente leitura barrando um `UPDATE` com o validador desligado (PostgreSQL, MySQL e Oracle) e idempotência com
+  chave sensível a maiúsculas e resposta maior que 2.000 bytes.
+
+> [!IMPORTANT]
+> Esses testes ainda não foram executados contra PostgreSQL, MySQL ou Oracle reais, e o CI não sobe esses bancos: por isso
+> os READMEs dos três provedores dizem "suporte implementado, validação de integração pendente".
+
 > [!NOTE]
 > As variáveis antigas `TEC_ORM_SQL_CONEXAO`, `TEC_ORM_*`, `TEC_TESTES_INTEGRACAO`, `TEC_ORM_KEYVAULT` e
 > `TEC_TESTES_SQL_SEGREDO` **não existem mais**: a integração é selecionada pela categoria e a conexão vem só das variáveis
@@ -154,16 +186,20 @@ O banco é o da própria conexão: `Database` obrigatório e nunca de sistema (`
 |---|:---:|---|
 | `OrmRepositoryTests` | ❌ | CRUD (InMemory), exclusão lógica, validações da exclusão física, chaves `string`/`int`/`Guid`/`long`, especificações, paginação, lista branca, limite da busca, cancelamento |
 | `AggregateTests` | ❌ | Agregado (`Sale`, `Installment`, `LedgerEntry`, *owned*): propagação, atualização só da raiz, concorrência otimista, `[Sortable]` |
-| `ConfigurationTests` | ❌ | Filtro obrigatório, filtros nomeados/anônimos (EF 8/10), convenções sem duplicar, vários contextos, `AddTecOrm` duplicado |
+| `ConfigurationTests` | ❌ | Filtro obrigatório, filtros nomeados/anônimos, convenções sem duplicar, vários contextos, `AddTecOrm` duplicado |
 | `AuditTests` · `IdentityTests` | ❌ | Autoria e tenant por operação, recusa sem identidade, cópia imutável do `ICurrentUser` no `UseTecOrm` |
 | `UnitOfWorkTests` | ❌ | `OrmUnitOfWork`: início duplicado, commit que falha (limpa o rastreador), rollback |
 | `ObservabilityTests` | ❌ | `Activity`, métrica e log em cada resultado; identificador `Plain`/`Hashed`/`Omitted`; exclusão física em `Warning` |
 | `ResilienceTests` | ❌ | Novas tentativas (só leitura repetível, nunca escrita, limite, cancelamento na espera), pool esgotado, Azure SQL, limites fora do intervalo, `Parameters` imutável, U+202E/U+2028 no log |
 | `SecurityTests` | ❌ | Política do segredo, conexão derivada, mascaramento, DI sem string de conexão |
+| `DialectTests` · `DialectSecurityTests` | ❌ | Dialetos SQL Server, PostgreSQL, MySQL e Oracle: delimitação de identificadores, SQL de reserva de idempotência com as colunas do modelo, prefixo de parâmetro, tradução das exceções dos drivers (também dentro de `DbUpdateException`, concorrência e recusas do ORM), política de criptografia do segredo (inclusive EZConnect e descritores com espaços no Oracle), `Enlist` da conexão de leitura e casos de bypass dos validadores somente leitura |
+| `ProviderRegistrationTests` | ❌ | Registro de cada provedor no container real: pipeline do contexto (logs sem dados sensíveis, eventos de erro, ordem dos interceptores, identidade, convenções, `CommandTimeout`), serviços, mapeador de exceções do TEC.Cqrs e autoria + trilha com o `ICurrentUser` |
+| `CommonPipelineTests` | ❌ | Peças comuns: abertura da conexão (cancelamento, falha do banco, erro de programação), transação somente leitura de cada dialeto, falha fechada sem validador, limite da trilha, `AuditLogTableName`, SQL de modelo por banco (filtro do índice, collation, `NCLOB`/`BLOB` no Oracle) |
 | `QueryTests` | ❌ | `SqlQuery`, verificação de somente leitura (com as regressões do fuzzing), `PageRequest` |
 | `MappingTests` · `GeneratorShapeTests` · `GeneratorDiagnosticsTests` · `HardDeleteAnalyzerTests` | ❌ | Mapeamento gerado, formas de DTO, todos os `TECORMxxx` (inclusive 015 e 016), `// <auto-generated/>` e `#nullable enable`, incrementalidade, aviso `TECORM014` |
 | `SqlServerIntegrationTests` | ✅ | Migrations, CRUD real, exclusão física (FK restrita, lote, rollback), conflito sem valor no log, paginação, `IUnitOfWork`, Dapper, projeção aninhada, database first, conexão do Key Vault, health check, senha errada sem vazamento |
 | `ResilienceIntegrationTests` | ✅ | Command aninhado que falha desfaz o pai, `READ_COMMITTED_SNAPSHOT`, `MaxQueryRows` sem ler o resto, `QuerySingleOrDefault` na segunda linha, escalar `NULL` → `default`, join com `splitOn` e `LEFT JOIN`, pool esgotado nos dois provedores |
+| `ProviderIntegrationTests` | ✅ | O mesmo pipeline contra SQL Server, PostgreSQL, MySQL e Oracle ([PostgreSQL, MySQL e Oracle](#postgresql-mysql-e-oracle)) |
 
 ### Testes de segurança
 
@@ -209,7 +245,7 @@ STATE`; sem a permissão o relatório mostra `n/d`.
 
 ```bash
 dotnet run -c Release --project TEC.ORM.Benchmarks -f net10.0 -- --filter "*"
-dotnet run -c Release --project TEC.ORM.Benchmarks -f net10.0 -- --filter "*Repository*" --runtimes net8.0 net10.0
+dotnet run -c Release --project TEC.ORM.Benchmarks -f net10.0 -- --filter "*Repository*"
 ```
 
 `RepositoryBenchmarks` (EF Core puro como linha de base), `QueryBenchmarks` e `InfrastructureBenchmarks`; resultados em
@@ -252,7 +288,6 @@ $env:TEC_TESTES_ORM_SQL_CONEXAO = Read-Host -Prompt 'Conexão do banco de testes
 | Configuração | Onde | Descrição |
 |---|---|---|
 | `--treenode-filter "/*/*/*/*[Category=...]"` | `dotnet test` | Seleção por categoria |
-| `-f net8.0` / `-f net10.0` | `dotnet test` | Um alvo só (sem `-f`, os dois) |
 | `--coverage --coverage-output-format cobertura` | `dotnet test` | Cobertura local (o CI soma a dos unitários e da integração) |
 | `TEC_TESTES_*` / `TEC_CARGA_*` | Ambiente | Tabelas acima |
 

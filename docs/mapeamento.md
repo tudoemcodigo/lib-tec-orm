@@ -61,7 +61,7 @@ flowchart LR
 | Item | Requisito |
 |---|---|
 | Pacote | `TEC.ORM` (o `TEC.ORM.SqlServer` já o traz). O gerador vem **dentro** dele (`analyzers/dotnet/cs`): não há outro pacote nem registro no DI |
-| Compilador | Visual Studio 17.12 / .NET SDK 9.0.100 ou mais novo (Roslyn 4.12); C# 11+ (membros `static abstract` de interface) |
+| Compilador | .NET SDK 10, porque os pacotes são só `net10.0` (o gerador em si exige Roslyn 4.12 ou mais novo); C# 11+ (membros `static abstract` de interface) |
 | DTO | `class` ou `record class`, `partial`, não genérico, não abstrato, não estático, não aninhado, com construtor sem parâmetros `public`/`internal`; sem membros `Projection`, `FromEntity`, `ApplyTo`, `ToEntity` ou `__TecOrm*`; propriedades preenchidas com `set` ou `init` |
 | Entidade | Classe ou interface **fechada** (genérico aberto: `TECORM015`). Para `ToEntity()`, classe concreta com construtor sem parâmetros acessível |
 
@@ -372,7 +372,7 @@ dos seus conversores.
 <details>
 <summary><code>ToCustomerDto()</code>/<code>ProjectToCustomerDto()</code> não existem.</summary>
 
-O gerador não rodou ou o DTO tem erro: compilador anterior ao VS 17.12/SDK 9.0.100, `TECORMxxx` na lista de erros ou o
+O gerador não rodou ou o DTO tem erro: SDK anterior ao .NET 10, `TECORMxxx` na lista de erros ou o
 projeto não referencia o `TEC.ORM`.
 
 </details>

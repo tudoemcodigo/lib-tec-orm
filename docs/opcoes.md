@@ -66,7 +66,7 @@ builder.Services.AddTecOrm<SalesContext>(orm => builder.Configuration.GetSection
 ### Em código
 
 ```csharp
-using TEC.ORM.SqlServer.Configuration;
+using TEC.ORM.EntityFrameworkCore.Configuration;
 
 builder.Services.AddTecOrm<SalesContext>(orm =>
 {
@@ -84,26 +84,31 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 
 ### OrmOptions
 
-> `TEC.ORM.SqlServer.Configuration` · `sealed class` · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore.Configuration` · `sealed class` · pacote `TEC.ORM.EntityFrameworkCore`
+>
+> A mesma classe nos quatro provedores (`AddTecOrm<TContext>`, `AddTecOrmPostgreSql<TContext>`, `AddTecOrmMySql<TContext>` e
+> `AddTecOrmOracle<TContext>`). A propriedade `Dialect` é definida pelo registro: um valor posto no `configure` é
+> substituído pelo dialeto do provedor.
 
 | Opção | Tipo | Padrão | Limites | Descrição |
 |---|---|---|---|---|
 | `ConnectionSecretName` | `string` | `""` (**obrigatório**) | não vazio | Segredo no TEC.Vault com a conexão de leitura e escrita (EF Core) |
 | `ReadOnlyConnectionSecretName` | `string?` | `null` | se informado, não vazio | Segredo das leituras complexas (login só com `SELECT`); `null` usa o principal |
-| `ApplicationName` | `string` | `"TEC.ORM"` | 1 a 128 caracteres | `Application Name` da conexão (`sys.dm_exec_sessions`) |
-| `AllowTrustServerCertificate` | `bool` | `false` | — | Aceita `TrustServerCertificate=True` no segredo (só desenvolvimento; log 3103) |
-| `CommandTimeoutSeconds` | `int` | `30` (`DefaultCommandTimeoutSeconds`) | 1 a 600 | Tempo limite dos comandos (EF Core e Dapper) |
+| `ApplicationName` | `string` | `"TEC.ORM"` | 1 a 128 caracteres | `Application Name` da conexão (`sys.dm_exec_sessions` no SQL Server; `application_name` no PostgreSQL). Não aplicado no MySQL (o MySql.Data não tem a chave) nem no Oracle |
+| `AllowTrustServerCertificate` | `bool` | `false` | — | Aceita `TrustServerCertificate=True` no segredo (só desenvolvimento; log 3103). No PostgreSQL libera `SslMode=Require`; no MySQL, `Preferred` e `Required`; no Oracle, conexão sem `TCPS` validado ([🛡️ Segurança](seguranca.md#provedores-postgresql-mysql-e-oracle)) |
+| `CommandTimeoutSeconds` | `int` | `30` (`DefaultCommandTimeoutSeconds`) | 1 a 600 | Tempo limite de cada comando, no EF Core (opção do provedor) e no Dapper. Não altera o tempo de abertura da conexão |
 | `MaxPageSize` | `int` | `100` | 1 a 10.000 | Itens máximos por página |
 | `MaxPageOffset` | `int` | `10000` | 0 a 100.000.000 | Itens máximos pulados pela listagem (`(Page - 1) * PageSize`); acima, `ORM_ENTRADA_INVALIDA` sem ir ao banco (o `OFFSET` profundo ordena e descarta as linhas anteriores a cada chamada) |
-| `AllowUnmarkedSortBy` | `bool` | `false` | — | Entidade **sem** `[Sortable]`: `false` aceita no `SortBy` só a chave e `CreatedAt`/`UpdatedAt`; `true` aceita qualquer propriedade escalar mapeada (comportamento até a 0.1.0). Com `[Sortable]`, só as marcadas, nos dois casos |
+| `AllowUnmarkedSortBy` | `bool` | `false` | — | Entidade **sem** `[Sortable]`: `false` aceita no `SortBy` só a chave e `CreatedAt`/`UpdatedAt`; `true` aceita qualquer propriedade escalar mapeada. Com `[Sortable]`, só as marcadas, nos dois casos |
 | `MaxFindResults` | `int` | `1000` | 1 a 100.000 | Registros máximos do `FindAsync` |
 | `MaxQueryRows` | `int` | `10000` | 1 a 1.000.000 | Linhas máximas de uma leitura complexa; acima, `ORM_LIMITE_EXCEDIDO` e o comando é cancelado no servidor |
 | `MaxSoftDeletePropagation` | `int` | `10000` | 1 a 1.000.000 | Dependentes excluídos logicamente por propagação num salvamento; acima, `ORM_LIMITE_EXCEDIDO` sem gravar nada ([🗑️ Exclusão lógica](exclusao-logica.md)) |
 | `TransientRetryCount` | `int` | `2` | 0 a 5 | Novas tentativas em falha transitória, **só em leituras fora de transação** (`0` desliga) |
 | `TransientRetryDelay` | `TimeSpan` | `200 ms` | 10 ms a 10 s | Espera antes da primeira nova tentativa; dobra a cada tentativa, com até 50% de variação aleatória |
-| `EnforceReadOnlyQueries` | `bool` | `true` | — | Verificação de somente leitura nas leituras complexas |
+| `EnforceReadOnlyQueries` | `bool` | `true` | — | Verificação de somente leitura nas leituras complexas. Sem verificação para o banco configurado, nenhuma consulta passa. Desligada, no PostgreSQL, MySQL e Oracle a transação `READ ONLY` continua barrando escritas |
 | `EnableHistoricalAudit` | `bool` | `true` | — | Habilita a gravação de trilha histórica com diffs para entidades `[Auditable]` |
-| `AuditLogTableName` | `string` | `"OrmAuditRecords"` | nome válido de tabela | Nome da tabela de trilha histórica |
+| `AuditLogTableName` | `string` | `"OrmAuditRecords"` (`DefaultAuditLogTableName`) | não vazio, até 128 caracteres | Nome da tabela da trilha quando `modelBuilder.AddTecOrmHistoricalAudit()` não recebe um; o nome passado a ele sempre vence |
+| `MaxAuditValueLength` | `int` | `1024` (`DefaultMaxAuditValueLength`) | 64 a 1.048.576 | Tamanho máximo de cada valor nos diffs da trilha; o excedente vira a marca `…(+N)` e `byte[]` vira `<N bytes>` |
 | `IdentifierLogMode` | `IdentifierLogMode` | `Auto` | valor definido | Como o identificador (e o autor da exclusão física) aparece nos logs de auditoria |
 | `CircuitBreaker` | `OrmCircuitBreakerOptions` | ligado (50%, 10 aberturas, 30 s, 30 s) | ver [🔁 Resiliência](resiliencia.md#circuit-breaker-da-conexão) | Circuit breaker da abertura de conexões: `Enabled`, `FailureRatio` (> 0 e ≤ 1), `MinimumThroughput` (2 a 10.000), `SamplingDuration` e `BreakDuration` (0,5 s a 1 h) |
 | `Validate()` | `void` | — | — | Valida tudo; lança `InvalidConfigurationException("TecOrm:<Opção>")` |
@@ -127,6 +132,7 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 |---|---|---|---|
 | `AddTecOrm<TContext>` | `configure` | obrigatório | Preenche as `OrmOptions` |
 | `AddTecOrm<TContext>` / `UseTecOrm` | `sqlServer` | `null` | Ajustes do provedor do EF Core (ex.: `MigrationsHistoryTable`). **Não** use `EnableRetryOnFailure` |
+| `AddTecOrmPostgreSql` / `AddTecOrmMySql` / `AddTecOrmOracle` | `postgreSql` / `mySql` / `oracle` | `null` | O mesmo para cada provedor (no Oracle, por exemplo, `UseOracleSQLCompatibility`). **Não** use `EnableRetryOnFailure` |
 | `AddHealthChecks().AddTecOrm` | `name` / `failureStatus` / `tags` / `timeout` | `tec-orm` / `Unhealthy` / `ready`,`database` / 5 s | [Health check](sqlserver.md#health-check) |
 
 ---
@@ -138,7 +144,8 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `ConnectionSecretName` vazio | `InvalidConfigurationException("TecOrm:ConnectionSecretName")` |
 | `ReadOnlyConnectionSecretName` informado em branco | `InvalidConfigurationException("TecOrm:ReadOnlyConnectionSecretName")` |
 | `ApplicationName` vazio ou com mais de 128 caracteres | `InvalidConfigurationException("TecOrm:ApplicationName")` |
-| `CommandTimeoutSeconds`, `MaxPageSize`, `MaxPageOffset`, `MaxFindResults`, `MaxQueryRows`, `MaxSoftDeletePropagation`, `TransientRetryCount`, `TransientRetryDelay` fora do limite | `InvalidConfigurationException("TecOrm:<Opção>")` |
+| `CommandTimeoutSeconds`, `MaxPageSize`, `MaxPageOffset`, `MaxFindResults`, `MaxQueryRows`, `MaxSoftDeletePropagation`, `TransientRetryCount`, `TransientRetryDelay`, `MaxAuditValueLength` fora do limite | `InvalidConfigurationException("TecOrm:<Opção>")` |
+| `AuditLogTableName` vazio ou com mais de 128 caracteres | `InvalidConfigurationException("TecOrm:AuditLogTableName")` |
 | `IdentifierLogMode` não definido no enum | `InvalidConfigurationException("TecOrm:IdentifierLogMode")` |
 | `CircuitBreaker` nulo | `InvalidConfigurationException("TecOrm:CircuitBreaker")` |
 | Opção do `CircuitBreaker` fora do limite (com `Enabled = true`) | `InvalidConfigurationException("TecOrm:CircuitBreaker:<Opção>")` |

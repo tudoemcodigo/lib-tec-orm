@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using TEC.ORM.SqlServer.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 
 namespace TEC.ORM.Tests.Database.CodeFirst;
 

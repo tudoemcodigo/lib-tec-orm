@@ -63,7 +63,7 @@ builder.Services.AddTecOrm<SalesContext>(orm => orm.ConnectionSecretName = "sale
 ### Sem o TEC.Observability
 
 ```csharp
-using TEC.ORM.SqlServer.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
 
 builder.Services.AddOpenTelemetry()
     .WithTracing(t => t.AddSource(OrmDiagnostics.ActivitySourceName))
@@ -72,7 +72,7 @@ builder.Services.AddOpenTelemetry()
 
 ### IOrmOperationRunner e OrmOperation
 
-> `TEC.ORM.SqlServer.Diagnostics` · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore.Diagnostics` · pacote `TEC.ORM.EntityFrameworkCore` (o mesmo nos quatro provedores)
 
 `IOrmOperationRunner` executa cada operação: cria o `Activity`, mede, registra, traduz exceções em `Result` e repete
 leituras em falha transitória. É ponto de extensão (os repositórios dependem só da interface).
@@ -106,7 +106,7 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 | `ActivitySourceName` / `MeterName` | `"TEC.ORM"` |
 | `OperationDurationName` | `"orm.operation.duration"` |
 | `EntityFrameworkProvider` / `DapperProvider` | `"entityframework"` / `"dapper"` |
-| `DbSystem` | `"microsoft.sql_server"` |
+| `UnknownDbSystem` | `"other_sql"` (sem dialeto; com dialeto, `db.system.name` é o `ISqlDialect.DbSystemName`: `microsoft.sql_server`, `postgresql`, `mysql` ou `oracle.db`) |
 | `CanceledErrorType` | `"canceled"` |
 | `CircuitStateChangesName` | `"orm.circuit.state_changes"` |
 
@@ -121,10 +121,11 @@ A contagem por operação e resultado vem do próprio histograma (ex.: taxa de e
 
 ### Eventos de log
 
-Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostics.OrmOperationRunner`,
-`TEC.ORM.SqlServer.Security.OrmConnectionSecurity` (inclusive o circuito das conexões abertas por ela),
-`TEC.ORM.SqlServer.Security.SecretConnectionInterceptor` (circuito da conexão do EF Core),
-`TEC.ORM.SqlServer.HealthChecks.OrmHealthCheck` e `TEC.ORM.SqlServer.Idempotency.IdempotencyCleanupService` (3200–3201).
+Mensagens geradas com `LoggerMessage`. Categorias (as mesmas nos quatro provedores):
+`TEC.ORM.EntityFrameworkCore.Diagnostics.OrmOperationRunner`, `TEC.ORM.EntityFrameworkCore.Security.OrmConnectionSecurity`
+(inclusive o circuito das conexões abertas por ela), `TEC.ORM.EntityFrameworkCore.Security.SecretConnectionInterceptor`
+(circuito da conexão do EF Core), `TEC.ORM.EntityFrameworkCore.HealthChecks.OrmHealthCheck` e
+`TEC.ORM.EntityFrameworkCore.Idempotency.IdempotencyCleanupService` (3200–3201).
 
 | Evento | Nível | Mensagem (modelo) |
 |---|---|---|
@@ -132,14 +133,14 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 | 3001 | Information | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) concluída em {ElapsedMilliseconds} ms. |
 | 3002 | Information | ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
 | 3003 | Warning | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
-| 3004 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, SQL {SqlErrorNumber}) em {ElapsedMilliseconds} ms. |
+| 3004 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, erro do banco {DatabaseErrorCode}) em {ElapsedMilliseconds} ms. |
 | 3005 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}. *(com a exceção; as de conversão de valor, sem a mensagem)* |
 | 3006 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) cancelada após {ElapsedMilliseconds} ms. |
 | 3007 | Warning | Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) por {Actor} removeu {Rows} linha(s) de fato do banco (irreversível) em {ElapsedMilliseconds} ms. |
-| 3008 | Warning | ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (SQL {SqlErrorNumber}); nova tentativa {Retry} de {MaxRetries}. |
+| 3008 | Warning | ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}. |
 | 3100 | Error | ORM: segredo da conexão {Kind} indisponível no cofre: {ErrorCode}. |
 | 3101 | Error | ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}. |
-| 3102 | Error | ORM: falha ao abrir a conexão {Kind} (SQL {SqlErrorNumber}). |
+| 3102 | Error | ORM: falha ao abrir a conexão {Kind} ({ExceptionType}, erro do banco {DatabaseErrorCode}). |
 | 3103 | Warning | ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento). |
 | 3104 | Warning | Health check do ORM falhou: {ErrorCode}. |
 | 3105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
@@ -159,10 +160,10 @@ Mensagens geradas com `LoggerMessage`. Categorias: `TEC.ORM.SqlServer.Diagnostic
 | Configuração | Padrão | Descrição |
 |---|---|---|
 | `OrmOptions.IdentifierLogMode` | `Auto` | Identificador (e autor da exclusão física) no log |
-| `Logging:LogLevel:TEC.ORM.SqlServer.Diagnostics.OrmOperationRunner` | do host | Mantenha `Information` em produção (auditoria das escritas) |
+| `Logging:LogLevel:TEC.ORM.EntityFrameworkCore.Diagnostics.OrmOperationRunner` | do host | Mantenha `Information` em produção (auditoria das escritas) |
 
 ```json
-{ "Logging": { "LogLevel": { "TEC.ORM.SqlServer.Diagnostics.OrmOperationRunner": "Information" } } }
+{ "Logging": { "LogLevel": { "TEC.ORM.EntityFrameworkCore.Diagnostics.OrmOperationRunner": "Information" } } }
 ```
 
 ---

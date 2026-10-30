@@ -50,7 +50,7 @@
 | Conexão sem criptografia / *man-in-the-middle* | `Encrypt=False`/`Optional` recusado; `TrustServerCertificate` só com opt-in e aviso 3103 | `OrmConnectionSecurity` |
 | Injeção de SQL por valor | Parâmetros sempre (`@p0`, `@Nome`, `@__id_0`); `Parameters` imutável | `SqlQuery`, `OrmRepository.HasId` |
 | Injeção ou inferência pela ordenação (`SortBy=PasswordHash`) | Lista branca `[Sortable]`; sem ela, só chave e datas de auditoria (`AllowUnmarkedSortBy = false`); sombra, exclusão lógica e tokens sempre recusados | `OrmRepository` |
-| Escrita pela conexão de leitura | Verificação de somente leitura + login só com `SELECT` | `OrmQueryExecutor` |
+| Escrita pela conexão de leitura | Verificação de somente leitura + login só com `SELECT`; no PostgreSQL, MySQL e Oracle, também a transação `READ ONLY` | `OrmQueryExecutor` |
 | Negação de serviço por consulta enorme | `MaxQueryRows` com cancelamento no servidor; `MaxFindResults`; `MaxPageSize`; tempo limite | `OrmQueryExecutor`, `OrmRepository` |
 | Vazamento em erros da API | Mensagens fixas; `ExternalService`/`Failure` ocultas do cliente | `OrmErrors` |
 | Vazamento em logs (valor de chave duplicada, senha em erro de parse) | Exceções de banco sem mensagem; parse sem exceção registrada | `OrmOperationRunner`, `OrmConnectionSecurity` |
@@ -116,7 +116,7 @@ sequenceDiagram
 | Exclusão lógica no EF Core | `IsDeleted = 0` no SQL próprio; reaplicar filtros ao usar `IgnoreQueryFilters()` |
 | *Overposting* | `Id` da rota, autorização antes do `ApplyTo`, DTOs de entrada separados |
 | Login da aplicação | Sem `db_owner`/`sysadmin`; migrations com outro login, fora da aplicação |
-| Mesma versão | `TEC.ORM` e `TEC.ORM.SqlServer` sempre na mesma versão (o satélite usa internos do núcleo) |
+| Mesma versão | `TEC.ORM`, `TEC.ORM.EntityFrameworkCore` e o pacote do banco sempre na mesma versão (os satélites usam internos do núcleo) |
 
 ### Checklist de produção
 
@@ -127,10 +127,49 @@ sequenceDiagram
 - [ ] `[Sortable]` nas entidades cujo `SortBy` vem da requisição.
 - [ ] Cache do TEC.Vault (`EnableSecretCache`) com duração compatível com a rotação de senha.
 - [ ] `IdentifierLogMode.Hashed` ou `Omitted` se alguma chave for dado pessoal.
-- [ ] Logs de `TEC.ORM.SqlServer` em `Information`; alerta para os eventos 3004 e 3007.
+- [ ] Logs do TEC.ORM em `Information`; alerta para os eventos 3004 e 3007.
 - [ ] Sem `EnableRetryOnFailure` no `AddTecOrm`.
 - [ ] Health check `tec-orm` no readiness; imagem com ICU.
-- [ ] `TEC.ORM` e `TEC.ORM.SqlServer` na mesma versão.
+- [ ] `TEC.ORM`, `TEC.ORM.EntityFrameworkCore` e o pacote do banco na mesma versão.
+
+### Provedores PostgreSQL, MySQL e Oracle
+
+Os quatro provedores (`AddTecOrm`, `AddTecOrmPostgreSql`, `AddTecOrmMySql`, `AddTecOrmOracle`) usam o mesmo registro do
+`TEC.ORM.EntityFrameworkCore` (`AddTecOrmDbContext`): identidade da auditoria pelo `ICurrentUser`, interceptores na ordem
+conexão → exclusão lógica → autoria → trilha histórica, convenções, `EnableSensitiveDataLogging(false)`, eventos de erro do
+EF Core que repetiriam a mensagem do banco desligados (`CommandError`, `ConnectionError`, `SaveChangesFailed`...),
+`CommandTimeout` nos comandos, `IExceptionErrorMapper` do TEC.Cqrs e `DefaultOrmAuditContextProvider` com o `ICurrentUser`.
+O que muda de um banco para outro é o dialeto:
+
+| Item | PostgreSQL | MySQL / MariaDB | Oracle |
+|---|---|---|---|
+| Recusado no segredo | `SslMode` `Disable`, `Allow`, `Prefer` | `SslMode=Disabled` (ou `None`) | descritor com algum `ADDRESS` sem `PROTOCOL=TCPS`; EZConnect sem `tcps://` (espaços, tabulações e quebras de linha são normalizados antes da verificação) |
+| Só com `AllowTrustServerCertificate` (aviso 3103) | `SslMode=Require`, que no Npgsql 6 ou superior cifra sem validar o certificado | `Preferred` e `Required` (não validam o certificado; `Preferred` ainda volta a conexão sem TLS) | os casos acima e `SSL_SERVER_DN_MATCH` desligado |
+| Impostos | `Persist Security Info=False`, `Include Error Detail=False`, `Application Name`, `Command Timeout` | `Persist Security Info=False`, `AllowLoadLocalInfile=false`, `Default Command Timeout` (sem `Application Name`: o MySql.Data não tem a chave) | `Persist Security Info=False` (o `Connection Timeout` do segredo fica como está) |
+| Conexão de leitura | `Enlist=false` | `AutoEnlist=false`, `ConnectionReset=true` | `Enlist=false` |
+| Transação das leituras do Dapper | `SET TRANSACTION READ ONLY` | `START TRANSACTION READ ONLY` | `SET TRANSACTION READ ONLY` |
+| Não inspecionado | — | — | alias do `tnsnames` (sem protocolo na string) e criptografia nativa do Oracle Net: a política do alias é de quem o mantém |
+
+A transação `READ ONLY` é aberta antes de cada consulta do `IOrmQueryExecutor` e desfeita no fim: mesmo que um SQL de
+escrita passe pelo validador (ou com `EnforceReadOnlyQueries = false`), o banco recusa a escrita. O SQL Server não tem
+transação somente leitura; lá a barreira continua sendo o login de leitura só com `SELECT`, com `ApplicationIntent=ReadOnly`.
+
+O validador somente leitura é uma lista de palavras proibidas, como no SQL Server, e continua sendo defesa em profundidade:
+use um login com permissão só de `SELECT`. Ele remove literais e comentários, exige que o SQL comece com `SELECT` ou `WITH` e
+recusa um segundo comando depois de `;`. Diferenças e limites do que ele reconhece:
+
+| Dialeto | Recusado | Não é recusado |
+|---|---|---|
+| PostgreSQL | `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`, `INTO`, `CREATE`, `ALTER`, `DROP`, `GRANT`, `REVOKE`, `EXECUTE`, `PREPARE`, `DEALLOCATE`, `CALL`, `DO`, `COPY`, `VACUUM`, `ANALYZE`, `REINDEX`, `CLUSTER`, `CHECKPOINT`, `LOCK`, `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, `SET`, `RESET`; as funções `PG_SLEEP*`, `PG_READ_FILE`, `PG_READ_BINARY_FILE`, `PG_WRITE_FILE`, `PG_WRITE_BINARY_FILE`, `DBLINK`, `DBLINK_EXEC`, `DBLINK_CONNECT`, `DBLINK_SEND_QUERY`, `LO_IMPORT`, `LO_EXPORT`, `LO_UNLINK`, `LO_CREATE`, `LO_FROM_BYTEA`, `LO_PUT`, `SET_CONFIG`, `NEXTVAL`, `SETVAL`, `PG_TERMINATE_BACKEND`, `PG_CANCEL_BACKEND`, `PG_RELOAD_CONF`, `PG_NOTIFY` e as que começam com `PG_ADVISORY_` ou `PG_TRY_ADVISORY_`, também entre aspas; `FOR UPDATE`, `FOR SHARE` e `FOR KEY SHARE` | funções de usuário com efeito colateral |
+| MySQL / MariaDB | `UPDATE`, `DELETE`, `MERGE`, `INTO`, `CREATE`, `ALTER`, `DROP`, `GRANT`, `REVOKE`, `EXECUTE`, `PREPARE`, `DEALLOCATE`, `CALL`, `LOCK`, `UNLOCK`, `BEGIN`, `COMMIT`, `ROLLBACK`, `SET`, `LOAD`; `INSERT`, `REPLACE` e `TRUNCATE` como comando; as funções `LOAD_FILE`, `SLEEP`, `BENCHMARK`, `GET_LOCK`, `RELEASE_LOCK`, `RELEASE_ALL_LOCKS`, `MASTER_POS_WAIT`, `SOURCE_POS_WAIT`, `WAIT_FOR_EXECUTED_GTID_SET`, também entre crases; `FOR UPDATE`, `FOR SHARE`, `LOCK IN SHARE MODE` e comentários `/*! */` e `/*M! */` | `REPLACE()`, `TRUNCATE()` e `INSERT()` usados como funções; funções de usuário com efeito colateral |
+| Oracle | `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`, `INTO`, `CREATE`, `ALTER`, `DROP`, `GRANT`, `REVOKE`, `EXEC`, `EXECUTE`, `DECLARE`, `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, `LOCK`, `CALL`, `FOR UPDATE`; `DBMS_*`, `UTL_*` e `HTTPURITYPE` em qualquer parte de um nome qualificado (`SYS.DBMS_LOCK`) e entre aspas (`"SYS"."DBMS_LOCK"`) | sinônimos criados no banco para esses pacotes e funções de usuário com efeito colateral |
+
+Fora as exceções do MySQL acima, as palavras valem em qualquer posição: uma coluna chamada `set` ou `do` precisa de aspas.
+
+> [!NOTE]
+> **Suporte implementado, validação de integração pendente.** PostgreSQL, MySQL e Oracle têm testes unitários, de registro
+> no container e de integração (`ProviderIntegrationTests`), mas os de integração ainda não rodaram contra os bancos reais
+> ([🧪 Testes](testes.md)).
 
 ---
 

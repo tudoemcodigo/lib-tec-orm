@@ -4,15 +4,15 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
-using TEC.Vault.DependencyInjection;
-using TEC.Vault.InMemory;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Entities;
+using TEC.ORM.EntityFrameworkCore.Security;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.SqlServer.DependencyInjection;
-using TEC.ORM.SqlServer.Security;
-using TEC.ORM.SqlServer.SoftDelete;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
+using TEC.Vault.DependencyInjection;
+using TEC.Vault.InMemory;
 
 namespace TEC.ORM.Tests;
 
@@ -31,7 +31,7 @@ public sealed class Document : Entity<int>
     public int Tenant { get; set; }
 }
 
-/// <summary>Filtro do inquilino: nomeado (EF Core 10) ou anônimo (EF Core 8 e 10).</summary>
+/// <summary>Filtro do inquilino: nomeado ou anônimo (EF Core 10 aceita os dois).</summary>
 public sealed class TenantContext(DbContextOptions<TenantContext> options, bool named) : OrmDbContext(options)
 {
     public bool Named { get; } = named;
@@ -40,13 +40,11 @@ public sealed class TenantContext(DbContextOptions<TenantContext> options, bool 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-#if NET10_0_OR_GREATER
         if (Named)
         {
             modelBuilder.Entity<Document>().HasQueryFilter("Tenant", d => d.Tenant == 1);
             return;
         }
-#endif
         modelBuilder.Entity<Document>().HasQueryFilter(d => d.Tenant == 1);
     }
 }
@@ -73,11 +71,7 @@ public class ConfigurationTests
     /// <summary>Quantas vezes os filtros da entidade testam IsDeleted.</summary>
     private static int SoftDeleteChecks(IReadOnlyEntityType entityType)
     {
-#if NET10_0_OR_GREATER
         return entityType.GetDeclaredQueryFilters().Sum(f => Count(f.Expression!.ToString()));
-#else
-        return entityType.GetQueryFilter() is { } filter ? Count(filter.ToString()) : 0;
-#endif
         static int Count(string text) => text.Split(nameof(ISoftDelete.IsDeleted)).Length - 1;
     }
 
@@ -142,10 +136,8 @@ public class ConfigurationTests
     {
         await using var context = Tenant(database, named);
         IQueryable<Document> query = context.Documents.AsNoTracking();
-#if NET10_0_OR_GREATER
         if (ignoreSoftDelete)
             query = query.IgnoreQueryFilters([OrmModelConfigurationExtensions.SoftDeleteFilterName]);
-#endif
         return [.. (await query.Select(d => d.Id).ToListAsync()).Order()];
     }
 
@@ -166,7 +158,6 @@ public class ConfigurationTests
         await Assert.That(await VisibleAsync(database, named: false)).IsEquivalentTo([1]);
     }
 
-#if NET10_0_OR_GREATER
     [Test]
     public async Task EF10_application_named_filter_coexists_with_the_soft_delete_named_filter()
     {
@@ -183,7 +174,6 @@ public class ConfigurationTests
         // Desliga só a exclusão lógica: o filtro do inquilino continua valendo
         await Assert.That(await VisibleAsync(database, named: true, ignoreSoftDelete: true)).IsEquivalentTo([1, 3]);
     }
-#endif
 
     /// <summary>
     /// Base da exclusão física: desliga só a exclusão lógica (enxerga o excluído 3) e mantém o filtro do inquilino (esconde o 2),
@@ -191,9 +181,7 @@ public class ConfigurationTests
     /// </summary>
     [Test]
     [Arguments(false)]
-#if NET10_0_OR_GREATER
     [Arguments(true)]
-#endif
     public async Task Ignoring_only_soft_delete_keeps_the_application_filter(bool named)
     {
         string database = Guid.NewGuid().ToString("N");

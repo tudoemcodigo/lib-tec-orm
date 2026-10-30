@@ -82,9 +82,10 @@ builder.Services.AddTecOrm<SalesContext>(
 builder.Services.AddHealthChecks().AddTecOrm();
 ```
 
-Pipeline aplicado ao contexto: `UseSqlServer()` com `CommandTimeout(CommandTimeoutSeconds)`; interceptores de conexão, de
-exclusão lógica e de auditoria, nessa ordem; identidade da operação (`ICurrentUser` do escopo); convenções do TEC.ORM;
-`EnableSensitiveDataLogging(false)`; e os eventos de erro do EF Core que repetiriam a mensagem do SQL Server
+Pipeline aplicado ao contexto (o registro comum `AddTecOrmDbContext` do `TEC.ORM.EntityFrameworkCore`, o mesmo do PostgreSQL,
+do MySQL e do Oracle): `UseSqlServer()` com `CommandTimeout(CommandTimeoutSeconds)`; interceptores de conexão, de exclusão
+lógica, de auditoria e da trilha histórica, nessa ordem; identidade da operação (`ICurrentUser` do escopo); convenções do
+TEC.ORM; `EnableSensitiveDataLogging(false)`; e os eventos de erro do EF Core que repetiriam a mensagem do SQL Server
 (`SaveChangesFailed`, `QueryIterationFailed`, `OptimisticConcurrencyException`, `CommandError`, `ConnectionError`,
 `TransactionError`) desligados.
 
@@ -94,7 +95,10 @@ exclusão lógica e de auditoria, nessa ordem; identidade da operação (`ICurre
 | `TimeProvider` | `TimeProvider.System` | Singleton |
 | `IOrmConnectionSecurity` | `OrmConnectionSecurity` | Singleton |
 | `IOrmOperationRunner` | `OrmOperationRunner` | Singleton |
-| Interceptores (conexão, exclusão lógica, auditoria) | Internos | Singleton |
+| Interceptores (conexão, exclusão lógica, auditoria, trilha histórica) | Internos | Singleton |
+| `IOrmAuditContextProvider` | `DefaultOrmAuditContextProvider` com o `ICurrentUser` da operação | Singleton |
+| `ISqlDialect` | `SqlServerDialect` | Singleton |
+| `IExceptionErrorMapper` (TEC.Cqrs) | Mapeador do dialeto (concorrência e conflito → 409) | Singleton |
 | `TContext` | `AddDbContext<TContext>` | Scoped |
 | `DbContext` | O `TContext` do escopo | Scoped |
 | `IOrmRepository<,>` | `OrmRepository<,>` (genérico aberto) | Scoped |
@@ -129,11 +133,11 @@ implementações do TEC.Security); para um `ICurrentUser` que dependa do estado 
 
 ### Conexão: IOrmConnectionSecurity
 
-> `TEC.ORM.SqlServer.Security` · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore.Security` · pacote `TEC.ORM.EntityFrameworkCore`
 
 | Membro | Retorno | Descrição |
 |---|---|---|
-| `OpenConnectionAsync(OrmConnectionKind kind, CancellationToken ct)` | `Task<Result<SqlConnection>>` | Cria e abre uma conexão (o chamador descarta) |
+| `OpenConnectionAsync(OrmConnectionKind kind, CancellationToken ct)` | `Task<Result<DbConnection>>` | Cria (pelo dialeto: `SqlConnection` no SQL Server) e abre uma conexão (o chamador descarta). Cancelamento pedido pelo chamador sobe como `OperationCanceledException` |
 | `ConfigureConnectionAsync(DbConnection connection, OrmConnectionKind kind, CancellationToken ct)` | `Task<Result>` | Aplica o segredo a uma conexão **fechada** sem string de conexão; conexão aberta ou já com servidor não é alterada |
 
 | `OrmConnectionKind` | Segredo | Uso |
@@ -141,10 +145,12 @@ implementações do TEC.Security); para um `ICurrentUser` que dependa do estado 
 | `ReadWrite` (0) | `ConnectionSecretName` | EF Core (CRUD) e health check |
 | `ReadOnly` (1) | `ReadOnlyConnectionSecretName` (ou `ConnectionSecretName`) + `ApplicationIntent=ReadOnly` | Dapper (`IOrmQueryExecutor`); direciona para réplicas de leitura |
 
-Implementação: `OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger)`.
-Conexões derivadas pelo EF Core sem servidor (ex.: `master`, para criar o banco) recebem o segredo mantendo só o banco
-pedido. Falha ao abrir: a conexão é descartada, o log 3102 leva só o número do erro SQL e o resultado é o erro traduzido;
-**pool esgotado** (`InvalidOperationException` do SqlClient) vira `ORM_CONEXAO_INDISPONIVEL`, sem pilha no log.
+Implementação: `OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger,
+ISqlDialect? dialect = null, TimeProvider? time = null)`. Conexões derivadas pelo EF Core sem servidor (ex.: `master`, para
+criar o banco) recebem o segredo mantendo só o banco pedido. Falha ao abrir: a conexão é descartada, o log 3102 leva só o
+tipo da exceção e o número do erro e o resultado é o erro traduzido; **pool esgotado** (`InvalidOperationException` do
+SqlClient) vira `ORM_CONEXAO_INDISPONIVEL`, sem pilha no log. Outras exceções (erro de programação) não são disfarçadas de
+indisponibilidade: sobem como estão.
 
 ### Política do segredo
 
@@ -281,7 +287,7 @@ Não (`IsAotCompatible=false`): EF Core e Dapper dependem de reflexão e geraç�
 <details>
 <summary>Qual versão do EF Core é usada?</summary>
 
-8.x no `net8.0` e 10.x no `net10.0` (definidas no `Directory.Packages.props`).
+10.x, no único alvo, `net10.0` (definida no `Directory.Packages.props`).
 
 </details>
 

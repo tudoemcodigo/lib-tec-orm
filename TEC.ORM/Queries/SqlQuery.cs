@@ -13,9 +13,10 @@ namespace TEC.ORM.Queries;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Interpolated"/> transforma cada valor interpolado em parâmetro (<c>@p0</c>, <c>@p1</c>...): o valor nunca entra
-/// no texto do SQL, então <c>$"... WHERE Nome = {nome}"</c> é seguro mesmo com <c>nome = "' OR 1=1 --"</c>. Nunca monte
-/// o texto antes (<c>string.Format</c>, concatenação ou interpolação em <c>string</c>) e passe já pronto.
+/// <see cref="Interpolated"/> transforma cada valor interpolado em parâmetro (<c>@p0</c>, <c>@p1</c>...; no Oracle o executor
+/// usa <c>:p0</c>, <c>:p1</c>...): o valor nunca entra no texto do SQL, então <c>$"... WHERE Nome = {nome}"</c> é seguro mesmo
+/// com <c>nome = "' OR 1=1 --"</c>. Nunca monte o texto antes (<c>string.Format</c>, concatenação ou interpolação em
+/// <c>string</c>) e passe já pronto. Em <see cref="Create{TParameters}"/>, escreva os marcadores do banco (<c>:Nome</c> no Oracle).
 /// </para>
 /// <para>
 /// <see cref="Name"/> identifica a consulta em logs, traces e métricas (baixa cardinalidade, ex.: <c>relatorio.vendas-por-cliente</c>).
@@ -52,17 +53,25 @@ public sealed partial class SqlQuery
     /// <summary>Quantidade máxima de parâmetros (limite do SQL Server: 2100).</summary>
     public const int MaxParameters = 2_000;
 
-    private SqlQuery(string name, string sql, IReadOnlyDictionary<string, object?> parameters)
+    /// <summary>Formato composto do <see cref="Interpolated"/> (<c>null</c> no <see cref="Create(string, string, IReadOnlyDictionary{string, object?}?)"/>).</summary>
+    private readonly string? _format;
+
+    /// <summary>Quantidade de marcadores do <see cref="_format"/>.</summary>
+    private readonly int _formatArguments;
+
+    private SqlQuery(string name, string sql, IReadOnlyDictionary<string, object?> parameters, string? format = null, int formatArguments = 0)
     {
         Name = name;
         Sql = sql;
         Parameters = parameters;
+        _format = format;
+        _formatArguments = formatArguments;
     }
 
     /// <summary>Nome da consulta para observabilidade (letras, dígitos, <c>.</c>, <c>-</c> e <c>_</c>; até 100 caracteres).</summary>
     public string Name { get; }
 
-    /// <summary>Texto do SQL, com marcadores de parâmetro (<c>@nome</c>).</summary>
+    /// <summary>Texto do SQL, com marcadores de parâmetro (<c>@nome</c>; no <see cref="Interpolated"/>, <c>@p0</c>...).</summary>
     public string Sql { get; }
 
     /// <summary>Parâmetros (nome sem <c>@</c> → valor), somente leitura: não podem ser trocados depois da validação.</summary>
@@ -86,7 +95,24 @@ public sealed partial class SqlQuery
         }
 
         string text = string.Format(CultureInfo.InvariantCulture, sql.Format, placeholders);
-        return new SqlQuery(name, ValidateSql(text), new ReadOnlyDictionary<string, object?>(parameters));
+        return new SqlQuery(name, ValidateSql(text), new ReadOnlyDictionary<string, object?>(parameters), sql.Format, arguments.Length);
+    }
+
+    /// <summary>
+    /// Texto do SQL com o prefixo de parâmetro do banco: no <see cref="Interpolated"/>, os marcadores gerados (<c>@p0</c>...)
+    /// saem com <paramref name="parameterPrefix"/> (ex.: <c>:p0</c> no Oracle); no <see cref="Create(string, string, IReadOnlyDictionary{string, object?}?)"/>,
+    /// o texto é o informado (escrito já com os marcadores do banco).
+    /// </summary>
+    /// <param name="parameterPrefix">Prefixo dos marcadores do driver (<c>@</c> ou <c>:</c>).</param>
+    internal string SqlFor(char parameterPrefix)
+    {
+        if (parameterPrefix == '@' || _format is null)
+            return Sql;
+
+        var placeholders = new object[_formatArguments];
+        for (int i = 0; i < placeholders.Length; i++)
+            placeholders[i] = parameterPrefix + "p" + i.ToString(CultureInfo.InvariantCulture);
+        return string.Format(CultureInfo.InvariantCulture, _format, placeholders);
     }
 
     /// <summary>

@@ -7,13 +7,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Core.Common.Results;
 using TEC.Core.Exceptions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.Dialects;
+using TEC.ORM.EntityFrameworkCore.Security;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.UnitOfWork;
 using TEC.ORM.Queries;
 using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
-using TEC.ORM.SqlServer.Internal;
-using TEC.ORM.SqlServer.SoftDelete;
-using TEC.ORM.SqlServer.UnitOfWork;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 
@@ -29,6 +31,8 @@ public class ResilienceTests
     private const int AzureDatabaseUnavailable = 40613;
     private const int ClientTimeout = -2;
     private const int LoginFailed = 18456;
+
+    private static readonly SqlServerExceptionTranslator SqlServerTranslator = new();
 
     private static (OrmOperationRunner Runner, CapturingLoggerProvider Logs) CreateRunner(int retries = 2)
     {
@@ -213,14 +217,14 @@ public class ResilienceTests
     public async Task Exhausted_pool_marked_on_open_is_connection_unavailable_infrastructure()
     {
         var exception = new InvalidOperationException("Timeout expired. The timeout period elapsed prior to obtaining a connection from the pool.");
-        OrmExceptionTranslator.MarkConnectionOpenFailure(exception);
+        OrmConnectionFailures.Mark(exception);
 
-        var translation = OrmExceptionTranslator.Translate(exception);
+        var translation = SqlServerTranslator.Translate(exception);
 
         await Assert.That(translation.Error.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
         await Assert.That(translation.IsInfrastructure).IsTrue();
-        await Assert.That(OrmExceptionTranslator.IsDatabaseException(exception)).IsTrue();
-        await Assert.That(OrmExceptionTranslator.IsTransient(exception)).IsFalse();   // repetir agravaria a tempestade no pool
+        await Assert.That(OrmExceptionTranslatorBase.IsDatabaseException(exception)).IsTrue();
+        await Assert.That(SqlServerTranslator.IsTransient(exception)).IsFalse();   // repetir agravaria a tempestade no pool
     }
 
     [Test]
@@ -228,7 +232,7 @@ public class ResilienceTests
     {
         var (runner, logs) = CreateRunner();
         var exception = new InvalidOperationException("mensagem-do-pool-que-nao-vai-para-o-log");
-        OrmExceptionTranslator.MarkConnectionOpenFailure(exception);
+        OrmConnectionFailures.Mark(exception);
 
         var result = await runner.ExecuteAsync<int>(Read(), _ => throw exception, CancellationToken.None);
 
@@ -241,7 +245,7 @@ public class ResilienceTests
     [Test]
     public async Task Unmarked_invalid_operation_is_still_an_unexpected_failure()
     {
-        var translation = OrmExceptionTranslator.Translate(new InvalidOperationException("bug"));
+        var translation = SqlServerTranslator.Translate(new InvalidOperationException("bug"));
 
         await Assert.That(translation.Error.Code).IsEqualTo(OrmErrors.FailureCode);
         await Assert.That(translation.IsInfrastructure).IsFalse();
@@ -250,7 +254,7 @@ public class ResilienceTests
     [Test]
     public async Task Azure_transient_error_is_connection_unavailable()
     {
-        var translation = OrmExceptionTranslator.Translate(SqlExceptionFactory.Create(AzureDatabaseUnavailable));
+        var translation = SqlServerTranslator.Translate(SqlExceptionFactory.Create(AzureDatabaseUnavailable));
 
         await Assert.That(translation.Error.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
         await Assert.That(translation.IsInfrastructure).IsTrue();

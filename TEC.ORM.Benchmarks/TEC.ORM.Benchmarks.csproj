@@ -12,7 +12,7 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <!-- Versão do EF Core (10.0.x) definida no Directory.Packages.props -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>

@@ -3,16 +3,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TEC.Vault.DependencyInjection;
-using TEC.Vault.InMemory;
 using TEC.Core.Exceptions;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
-using TEC.ORM.SqlServer.Configuration;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.SqlServer.DependencyInjection;
-using TEC.ORM.SqlServer.Security;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
+using TEC.Vault.DependencyInjection;
+using TEC.Vault.InMemory;
 
 namespace TEC.ORM.Tests;
 

@@ -13,10 +13,13 @@
 ## ✨ O que é
 
 - **`AddTecOrm<TContext>`**: registra o contexto e `IOrmRepository<,>`, `IOrmQueryExecutor`, `IUnitOfWork` (TEC.Cqrs),
-  `IOrmOperationRunner` e `IOrmConnectionSecurity`; opções validadas na subida.
+  `IOrmOperationRunner` e `IOrmConnectionSecurity`; opções validadas na subida. O pipeline (repositório, executor,
+  interceptores, opções) é o do `TEC.ORM.EntityFrameworkCore`, o mesmo dos provedores PostgreSQL, MySQL e Oracle; este pacote
+  traz o dialeto do SQL Server (`SqlServerDialect`, `SqlServerExceptionTranslator`) e o registro.
 - **Conexão do cofre**: o `DbContext` não tem string de conexão; ela vem do TEC.Vault na abertura e passa por uma política
   (criptografia obrigatória, `TrustServerCertificate` só com opt-in, `Persist Security Info=False`).
-- **Exclusão lógica automática** (filtro global no EF Core 8 e 10, com propagação) e **auditoria** com o `ICurrentUser`.
+- **Exclusão lógica automática** (filtro global nomeado do EF Core 10, com propagação) e **auditoria** com o `ICurrentUser`,
+  nas colunas de autoria e na trilha histórica.
 - **Resiliência**: novas tentativas só em leituras fora de transação; limites `MaxFindResults`, `MaxPageSize` e
   `MaxQueryRows`; pool esgotado e erros transitórios do Azure SQL viram `ORM_CONEXAO_INDISPONIVEL`.
 - **Observabilidade**: `ActivitySource`/`Meter` `TEC.ORM` e logs de auditoria, sem SQL, valores ou dados da conexão;
@@ -38,7 +41,7 @@ dotnet add package TEC.ORM.SqlServer --version 0.0.1
 > [!IMPORTANT]
 > **Use o `TEC.ORM` na mesma versão deste pacote.** Este satélite usa tipos internos do núcleo (`InternalsVisibleTo`) e
 > é publicado junto com ele; versões diferentes podem falhar em execução (`MissingMethodException`, `TypeLoadException`).
-> O pacote já traz o `TEC.ORM` na versão certa. Depende também do `TEC.Vault` e do `TEC.Cqrs`.
+> O pacote já traz o `TEC.ORM` e o `TEC.ORM.EntityFrameworkCore` na versão certa. Depende também do `TEC.Vault` e do `TEC.Cqrs`.
 
 ## 🚀 Início rápido
 
@@ -63,13 +66,19 @@ builder.Services.AddHealthChecks().AddTecOrm();          // tags "ready" e "data
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
-using TEC.ORM.SqlServer.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 
 public sealed class SalesContext(DbContextOptions<SalesContext> options) : OrmDbContext(options)
 {
     public DbSet<Customer> Customers => Set<Customer>();
 }
 ```
+
+> [!NOTE]
+> Vindo da 0.0.1: `OrmOptions`, `OrmDbContext`, `OrmRepository`, a idempotência e os demais tipos que eram cópias neste
+> pacote agora são os do `TEC.ORM.EntityFrameworkCore` (troque `TEC.ORM.SqlServer.Configuration`, `.SoftDelete`,
+> `.Idempotency`, `.Security`... por `TEC.ORM.EntityFrameworkCore.*`). A lista completa está no
+> [CHANGELOG](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/CHANGELOG.md).
 
 > [!WARNING]
 > Não use `EnableRetryOnFailure` do EF Core no `AddTecOrm`: quebra as transações do `IUnitOfWork` e repetiria escritas. As
@@ -80,4 +89,4 @@ public sealed class SalesContext(DbContextOptions<SalesContext> options) : OrmDb
 Registro, conexão e política, health check, opções, resiliência e observabilidade:
 [docs/README.md](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/docs/README.md).
 
-`net8.0` e `net10.0` · EF Core 8/10 · [MIT](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/LICENSE) · Roberto Oliveira, equipe Tudo em Código
+`net10.0` · EF Core 10 · [Apache 2.0](https://github.com/tudoemcodigo/lib-tec-orm/blob/main/LICENSE) · Roberto Oliveira, equipe Tudo em Código

@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TEC.Core.Common.Results;
 using TEC.ORM.Common;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
-using TEC.ORM.SqlServer.Internal;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.Tests.Fakes;
 
 namespace TEC.ORM.Tests;

@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Core.Security;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.Auditing;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.Auditing;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
-using TEC.ORM.SqlServer.SoftDelete;
 
 namespace TEC.ORM.LoadTests.Infrastructure;
 

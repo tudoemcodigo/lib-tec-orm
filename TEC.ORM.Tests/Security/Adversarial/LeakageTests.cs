@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using TEC.Core.Common.Results;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Configuration;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
-using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 using TEC.ORM.Tests.Integration;
@@ -52,7 +52,7 @@ public class LeakageTests
         var logs = new CapturingLoggerProvider();
         using var telemetry = new OrmTelemetryListener(nameof(Customer));
         await using var context = TestOrm.InMemoryContext();
-        var customers = TestOrm.Orm<Customer, Guid>(context, logger: logs.CreateLogger<SqlServer.Diagnostics.OrmOperationRunner>());
+        var customers = TestOrm.Orm<Customer, Guid>(context, logger: logs.CreateLogger<EntityFrameworkCore.Diagnostics.OrmOperationRunner>());
 
         var result = await customers.ListAsync(new PageRequest(1, 10, "Name" + secret));
 
@@ -71,7 +71,7 @@ public class LeakageTests
         using var telemetry = new OrmTelemetryListener(nameof(Category));
         await using var context = TestOrm.InMemoryContext();
         var categories = TestOrm.Orm<Category, string>(context, TestOrm.Options(o => o.IdentifierLogMode = mode),
-            logs.CreateLogger<SqlServer.Diagnostics.OrmOperationRunner>());
+            logs.CreateLogger<EntityFrameworkCore.Diagnostics.OrmOperationRunner>());
 
         var created = await categories.CreateAsync(new Category { Id = secret, Name = "Category" });
         var read = await categories.GetByIdAsync(secret);

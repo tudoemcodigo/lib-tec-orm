@@ -13,6 +13,11 @@ public readonly record struct OrmDbExceptionTranslation(Error Error, bool IsInfr
 /// <summary>
 /// Tradutor de exceções nativas de banco de dados para os erros padronizados de <see cref="TEC.ORM.Common.OrmErrors"/>.
 /// </summary>
+/// <remarks>
+/// Os tradutores dos provedores derivam de <see cref="OrmExceptionTranslatorBase"/>, que percorre as <c>InnerException</c>
+/// (o EF Core embrulha o erro do banco em <c>DbUpdateException</c>) e trata concorrência otimista, tempo esgotado e as
+/// recusas do próprio TEC.ORM.
+/// </remarks>
 public interface IOrmExceptionTranslator
 {
     /// <summary>Traduz a exceção no erro de domínio correspondente.</summary>
@@ -23,4 +28,10 @@ public interface IOrmExceptionTranslator
 
     /// <summary>Indica se a falha decorreu de indisponibilidade ou queda de conexão.</summary>
     bool IsConnectionFailure(Exception exception);
+
+    /// <summary>
+    /// Indica se a exceção é uma violação de chave única ou primária (e só ela; chave estrangeira não conta). Usado pela reserva
+    /// de idempotência, que trata só esse caso como "já existe". Padrão: <c>false</c> (a exceção sobe).
+    /// </summary>
+    bool IsUniqueViolation(Exception exception) => false;
 }

@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using Microsoft.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore;
 using TEC.ORM.Paging;
 using TEC.ORM.Specifications;
 using TEC.ORM.SqlServer;

@@ -126,7 +126,7 @@ public sealed record ListOrders(int? Page, int? Size, string? Sort, bool? Desc);
 |---|---|
 | Tem **ao menos uma** propriedade `[Sortable]` | Só as marcadas (lista branca explícita) |
 | Não tem nenhuma (padrão) | Só a chave e `CreatedAt`/`UpdatedAt` (falha fechada) |
-| Não tem nenhuma, com `OrmOptions.AllowUnmarkedSortBy = true` | Qualquer propriedade escalar mapeada (comportamento até a 0.1.0) |
+| Não tem nenhuma, com `OrmOptions.AllowUnmarkedSortBy = true` | Qualquer propriedade escalar mapeada (sem lista de permissões) |
 | Sempre recusadas | Propriedades sombra, `IsDeleted`/`DeletedAt` e tokens de concorrência (`rowversion`, `[ConcurrencyCheck]`) |
 
 ```csharp

@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Paging;
 using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.SoftDelete;
 using TEC.ORM.Tests.Fakes;
 
 namespace TEC.ORM.Tests.Aggregates;

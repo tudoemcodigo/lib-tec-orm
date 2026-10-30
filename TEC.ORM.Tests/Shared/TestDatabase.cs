@@ -228,7 +228,7 @@ internal static class TestDatabase
     }
 
     /// <summary>Primeiro valor: variável de ambiente, user-secrets e <c>appsettings.Local.json</c> (seção <see cref="Section"/>).</summary>
-    private static string? Read(string variable, string key)
+    internal static string? Read(string variable, string key)
     {
         if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } value && !string.IsNullOrWhiteSpace(value))
             return value.Trim();

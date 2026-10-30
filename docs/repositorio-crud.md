@@ -25,7 +25,7 @@
 ## 🎯 Visão geral
 
 `IOrmRepository<TEntity, TKey>` (pacote `TEC.ORM`) é o contrato; `OrmRepository<TEntity, TKey>` (pacote
-`TEC.ORM.SqlServer`) é a implementação com EF Core, registrada pelo `AddTecOrm` como genérico aberto (*scoped*): injete
+`TEC.ORM.EntityFrameworkCore`) é a implementação com EF Core, a mesma nos quatro provedores, registrada pelo `AddTecOrm*` como genérico aberto (*scoped*): injete
 `IOrmRepository<Customer, Guid>` direto, sem registrar nada por entidade.
 
 ```mermaid
@@ -126,9 +126,10 @@ var total = await customers.CountAsync(c => c.Email.EndsWith("@empresa.com"), ct
 
 ### OrmRepository\<TEntity, TKey\> (EF Core)
 
-> `TEC.ORM.SqlServer` · `class` (não selada, membros `virtual`) · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore` · `class` (não selada, membros `virtual`) · pacote `TEC.ORM.EntityFrameworkCore`
 
-Construtor: `OrmRepository(DbContext context, IOrmOperationRunner runner, OrmOptions options)`.
+Construtor: `OrmRepository(DbContext context, IOrmOperationRunner runner, OrmOptions options)`. SQL Server, PostgreSQL, MySQL
+e Oracle usam esta mesma classe e as regras abaixo.
 
 | Operação | Comportamento |
 |---|---|
@@ -174,6 +175,7 @@ Usos típicos: expurgo de excluídos antigos, eliminação de dados pedida pelo 
 |---|---|
 | Compilação | Toda chamada gera o aviso **`TECORM014`** (também para *overrides* e implementações sem o atributo). Ver [🛑 Diagnósticos](diagnosticos-do-gerador.md#tecorm014--exclusão-física-o-registro-será-excluído-de-fato) |
 | Execução | No sucesso, log de auditoria **3007** em `Warning` (em vez do 3001 em `Information`), com o autor (`ICurrentUser`) e as linhas removidas |
+| Trilha histórica | Entidade `[Auditable]` (com `EnableHistoricalAudit`): a linha é lida antes do `DELETE` e a exclusão grava um `OrmAuditRecord` `Deleted` com os valores antigos, na mesma transação (aberta aqui se não houver uma) |
 | Identidade | Entidade `IAuditable` sem identidade autenticada: `ORM_AUDITORIA_SEM_IDENTIDADE`, nada é excluído |
 
 ```csharp
@@ -203,7 +205,7 @@ public sealed class PurgeService(IOrmRepository<Customer, Guid> customers, TimeP
 |---|---|
 | Alcança os excluídos logicamente | Só o filtro de exclusão lógica é desligado; os filtros globais da aplicação (ex.: inquilino) continuam valendo |
 | Dependentes | Seguem as chaves estrangeiras do **banco**: `ON DELETE CASCADE` remove junto; `NO ACTION`/`RESTRICT` com dependente = `ORM_CONFLITO` e nada é excluído. A propagação de exclusão lógica não se aplica |
-| Lote | Critério obrigatório (sem ele: `ORM_ENTRADA_INVALIDA`); `Include` e ordenação ignorados; zero linhas não é falha. Instâncias rastreadas não são desanexadas: não as regrave |
+| Lote | Critério obrigatório (sem ele: `ORM_ENTRADA_INVALIDA`); `Include` e ordenação ignorados; zero linhas não é falha. Instâncias rastreadas não são desanexadas: não as regrave. Em entidade `[Auditable]`, as linhas do critério são lidas antes (no máximo `MaxFindResults`; acima disso, `ORM_LIMITE_EXCEDIDO` sem excluir nada) e removidas uma a uma pela chave, cada uma com o seu `OrmAuditRecord`; sem a trilha, é um único `DELETE ... WHERE` |
 | Transação | Participa do `IUnitOfWork` ativo; o rollback desfaz |
 | Provedor | Exige provedor relacional (`ExecuteDelete`; o InMemory não executa) e não suporta herança TPT/TPC |
 
@@ -232,10 +234,10 @@ app.MapGet("/clientes/{id:guid}", async (Guid id, IOrmRepository<Customer, Guid>
 using Microsoft.EntityFrameworkCore;
 using TEC.Core.Common.Results;
 using TEC.ORM.Abstractions;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
 using TEC.ORM.Specifications;
-using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
 
 public sealed class CustomerRepository(DbContext context, IOrmOperationRunner runner, OrmOptions options)
     : OrmRepository<Customer, Guid>(context, runner, options)

@@ -8,8 +8,8 @@ using TEC.Cqrs.DependencyInjection;
 using TEC.Cqrs.Validation;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.Queries;
-using TEC.ORM.SqlServer.Security;
 using TEC.ORM.Tests.Database.CodeFirst;
 using TEC.ORM.Tests.Fakes;
 

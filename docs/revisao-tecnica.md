@@ -5,6 +5,11 @@
 > Revisão de segurança, correção e organização do TEC.ORM feita em **2026-10-19**, com cada achado conferido no código-fonte
 > (arquivo e linha). Não altera o código: registra o que foi encontrado, o impacto e a correção sugerida.
 
+> [!NOTE]
+> Relatório histórico de 2026-10-19: não trate os resultados como o estado atual. Ele cobre só o `TEC.ORM`, o
+> `TEC.ORM.SqlServer` e o gerador (não cobre `TEC.ORM.EntityFrameworkCore`, `PostgreSql`, `MySql` nem `Oracle`). As versões
+> `0.1.0` e `0.2.0` citadas aqui não correspondem à `<Version>` atual do `Directory.Build.props` (`0.0.1`).
+
 ## 📑 Sumário
 
 - [🎯 Escopo](#-escopo)

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TEC.Cqrs.Idempotency;
-using TEC.ORM.SqlServer.Idempotency;
+using TEC.ORM.EntityFrameworkCore.Idempotency;
 using TEC.ORM.Tests.Fakes;
 
 namespace TEC.ORM.Tests.Integration;

@@ -4,10 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TEC.Core.Security;
 using TEC.ORM.Abstractions;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.Queries;
-using TEC.ORM.SqlServer.Configuration;
 using TEC.ORM.SqlServer.DependencyInjection;
-using TEC.ORM.SqlServer.Security;
 using TEC.Vault.DependencyInjection;
 
 namespace TEC.ORM.LoadTests.Infrastructure;

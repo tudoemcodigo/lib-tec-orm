@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using TEC.ORM.Entities;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Paging;
-using TEC.ORM.SqlServer.SoftDelete;
 
 namespace TEC.ORM.Tests.Aggregates;
 

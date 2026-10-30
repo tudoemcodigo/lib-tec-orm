@@ -8,11 +8,30 @@ using TEC.ORM.Entities;
 
 namespace TEC.ORM.EntityFrameworkCore.Auditing;
 
+/// <summary>Gravação recusada pela auditoria. Convertida no erro <see cref="Error"/> pela tradução de exceções.</summary>
 internal sealed class OrmAuditException(Error error) : InvalidOperationException("Gravação recusada: " + error.Code)
 {
     public Error Error { get; } = error;
 }
 
+/// <summary>
+/// Preenche e protege os campos de <see cref="IAuditable"/> ao salvar, com o <see cref="ICurrentUser"/> do contexto
+/// (<see cref="OrmIdentity"/>). Roda <b>depois</b> do interceptor de exclusão lógica (a exclusão já virou alteração de
+/// <c>IsDeleted</c>) e <b>antes</b> da trilha histórica (que registra os valores já carimbados).
+/// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item><description><b>Sem identidade autenticada</b>: a gravação de qualquer entidade auditada é recusada
+/// (<see cref="OrmErrors.AuditIdentityRequired"/>); nada é gravado.</description></item>
+/// <item><description><b>Criação</b>: <c>CreatedAt</c>/<c>CreatedBy</c>/<c>CreatedByTenant</c> do relógio e da identidade (o que
+/// vier no objeto é ignorado).</description></item>
+/// <item><description><b>Alteração</b>: <c>UpdatedAt</c>/<c>UpdatedBy</c>/<c>UpdatedByTenant</c>; os campos de criação e de
+/// exclusão ficam fora do <c>UPDATE</c>.</description></item>
+/// <item><description><b>Exclusão lógica</b>: <c>DeletedBy</c>/<c>DeletedByTenant</c> (o instante já está em <c>DeletedAt</c>);
+/// os campos de alteração ficam fora do <c>UPDATE</c>.</description></item>
+/// </list>
+/// O tenant é só informativo (<c>null</c> se a identidade não tem tenant): os registros são globais e não há restrição por tenant.
+/// </remarks>
 internal sealed class AuditInterceptor(TimeProvider time) : SaveChangesInterceptor
 {
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -98,6 +117,7 @@ internal sealed class AuditInterceptor(TimeProvider time) : SaveChangesIntercept
         }
     }
 
+    /// <summary>Coluna fora do <c>UPDATE</c> (o valor do objeto, se alterado pela aplicação, não é gravado).</summary>
     private static void Keep(EntityEntry entry, string property)
     {
         var value = entry.Property(property);

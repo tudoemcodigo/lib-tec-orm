@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
-using TEC.ORM.SqlServer.SoftDelete;
-using TEC.ORM.SqlServer.UnitOfWork;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.UnitOfWork;
 using TEC.ORM.Tests.Database.CodeFirst;
 
 namespace TEC.ORM.Tests;

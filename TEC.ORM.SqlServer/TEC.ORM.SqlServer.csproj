@@ -13,26 +13,9 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 
-  <!-- EF Core acompanha o runtime: 8.x no net8.0 e 10.x no net10.0 (ambos LTS) -->
-  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <!-- EF Core acompanha o runtime (net10.0 -> EF Core 10), versão no Directory.Packages.props -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
-  </ItemGroup>
-
-  <!-- Microsoft.Extensions.* 10.x nos dois TFMs (suportam net8.0), alinhado ao TEC.Vault -->
-  <ItemGroup>
-    <PackageReference Include="Dapper" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-    <PackageReference Include="Polly.Core" />
-  </ItemGroup>
-
-  <!--
-    Satélite da família TEC.ORM com acesso aos internos do núcleo (InternalsVisibleTo): usa os polyfills (ex.: Lock no net8.0)
-    já compilados no TEC.ORM; uma segunda cópia local seria o conflito CS0436.
-  -->
-  <ItemGroup>
-    <Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />
   </ItemGroup>
 
   <!-- Componentes TEC do feed interno (tec-interno): TEC.Vault e TEC.Cqrs; o TEC.Core chega pelo TEC.ORM -->

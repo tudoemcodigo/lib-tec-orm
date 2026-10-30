@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TEC.Core.Security;
 using TEC.ORM.Entities;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Mapping;
 using TEC.ORM.Paging;
-using TEC.ORM.SqlServer.SoftDelete;
 
 namespace TEC.ORM.LoadTests.Infrastructure;
 

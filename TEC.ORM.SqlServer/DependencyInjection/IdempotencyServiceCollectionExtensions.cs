@@ -1,19 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using TEC.Cqrs.Idempotency;
-using TEC.ORM.SqlServer.Idempotency;
+using TEC.ORM.EntityFrameworkCore.Idempotency;
+using CoreRegistration = TEC.ORM.EntityFrameworkCore.DependencyInjection.OrmServiceCollectionExtensions;
 
 namespace TEC.ORM.SqlServer.DependencyInjection;
 
-/// <summary>Registro do store de idempotência no banco.</summary>
+/// <summary>Registro do store de idempotência no banco (mesmo namespace do <c>AddTecOrm</c>).</summary>
 public static class IdempotencyServiceCollectionExtensions
 {
     /// <summary>
-    /// Registra o <see cref="EfIdempotencyStore{TContext}"/> como <see cref="IIdempotencyStore"/> (Scoped), usado pela
-    /// idempotência HTTP do <c>TEC.Cqrs.AspNetCore</c> (<c>AddIdempotency</c>/<c>UseTecIdempotency</c>), e a limpeza periódica
-    /// das chaves expiradas. O contexto precisa mapear a tabela com
-    /// <see cref="IdempotencyModelBuilderExtensions.AddTecIdempotency"/> (e a migration aplicada).
+    /// Registra o <see cref="EfIdempotencyStore{TContext}"/> como <see cref="IIdempotencyStore"/> (Scoped) e a limpeza periódica
+    /// das chaves expiradas. Encaminha para o registro comum
+    /// (<see cref="CoreRegistration.AddTecOrmIdempotency{TContext}(IServiceCollection, Action{OrmIdempotencyOptions}?)"/>).
     /// </summary>
     /// <typeparam name="TContext">Contexto registrado com <c>AddTecOrm&lt;TContext&gt;</c>.</typeparam>
     /// <param name="services">Container.</param>
@@ -28,31 +27,6 @@ public static class IdempotencyServiceCollectionExtensions
     /// </code>
     /// </example>
     public static IServiceCollection AddTecOrmIdempotency<TContext>(this IServiceCollection services, Action<OrmIdempotencyOptions>? configure = null)
-        where TContext : DbContext
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        var existing = services.FirstOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(IIdempotencyStore));
-        if (existing is not null)
-        {
-            throw new InvalidOperationException(
-                $"Já existe um IIdempotencyStore registrado ({existing.ImplementationType?.Name ?? "factory/instância"}). " +
-                "Registre um único store: AddTecOrmIdempotency<TContext>() ou AddInMemoryIdempotencyStore().");
-        }
-
-        var options = new OrmIdempotencyOptions();
-        configure?.Invoke(options);
-        options.Validate();
-
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddScoped<EfIdempotencyStore<TContext>>();
-        services.AddScoped<IIdempotencyStore>(sp => sp.GetRequiredService<EfIdempotencyStore<TContext>>());
-        if (options.EnableCleanup)
-        {
-            services.AddSingleton(options);
-            services.AddHostedService<IdempotencyCleanupService<TContext>>();
-        }
-
-        return services;
-    }
+        where TContext : DbContext =>
+        CoreRegistration.AddTecOrmIdempotency<TContext>(services, configure);
 }

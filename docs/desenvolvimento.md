@@ -28,7 +28,9 @@
 |---|---|---|
 | `TEC.ORM` | `TEC.Core` | `<TecReference Include="TEC.Core" />` |
 | `TEC.ORM` | `TEC.ORM.Mapping.Generator` | `ProjectReference` sem o assembly; a DLL vai no pacote em `analyzers/dotnet/cs` |
-| `TEC.ORM.SqlServer` | `TEC.ORM`, `TEC.Vault`, `TEC.Cqrs` | `ProjectReference` + `<TecReference Include="TEC.Vault" />`, `<TecReference Include="TEC.Cqrs" />` |
+| `TEC.ORM.EntityFrameworkCore` | `TEC.ORM`, `TEC.Vault`, `TEC.Cqrs` | `ProjectReference` + `<TecReference Include="TEC.Vault" />`, `<TecReference Include="TEC.Cqrs" />` |
+| `TEC.ORM.SqlServer` | `TEC.ORM`, `TEC.ORM.EntityFrameworkCore`, `TEC.Vault`, `TEC.Cqrs` | `ProjectReference` + `<TecReference Include="TEC.Vault" />`, `<TecReference Include="TEC.Cqrs" />` |
+| `TEC.ORM.PostgreSql`, `TEC.ORM.MySql`, `TEC.ORM.Oracle` | `TEC.ORM.EntityFrameworkCore` (que traz `TEC.ORM`, `TEC.Vault` e `TEC.Cqrs`) | `ProjectReference` + o provedor do EF Core do banco (`Npgsql.EntityFrameworkCore.PostgreSQL`, `MySql.EntityFrameworkCore`, que traz o driver MySql.Data usado também pelo Dapper, e `Oracle.EntityFrameworkCore`) |
 | Testes, carga, benchmarks | `TEC.Vault.InMemory`, `TEC.Vault.AzureKeyVault` | `TecReference` |
 
 O `build/Tec.Build.targets` decide como resolver cada `TecReference`:
@@ -68,7 +70,7 @@ flowchart LR
 
 | Item | Detalhe |
 |---|---|
-| SDK | .NET 10 (`global.json`: `10.0.100`, `rollForward: latestFeature`) e o runtime 8.0 para os testes em `net8.0` |
+| SDK | .NET 10 (`global.json`: `10.0.402`, `rollForward: latestPatch`) |
 | Feed `tec-interno` | Leitura obrigatória no modo pacote, o padrão (PAT classic com `read:packages`; o GitHub Packages exige token mesmo para pacote público) |
 | Docker | Para os testes de integração e de carga com SQL Server ([🧪 Testes](testes.md#sql-server-local-descartável)) |
 | `dotnet-ef` | Ferramenta local (`dotnet tool restore`), para migrations do banco de testes |
@@ -107,23 +109,27 @@ dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Categ
 dotnet pack TEC.ORM.slnx -c Release -o ./pacotes
 ```
 
-O `dotnet pack` gera **dois** pacotes, com a mesma versão (`Directory.Build.props`):
+O `dotnet pack` gera **seis** pacotes, com a mesma versão (`Directory.Build.props`): todo projeto que não seja teste, carga,
+benchmark nem o gerador é empacotável (`build/Tec.Build.props`).
 
 | Pacote | Conteúdo |
 |---|---|
-| `TEC.ORM` | `lib/net8.0`, `lib/net10.0`, documentação XML, `README.md` da pasta `TEC.ORM/` e o gerador em `analyzers/dotnet/cs/TEC.ORM.Mapping.Generator.dll` |
-| `TEC.ORM.SqlServer` | `lib/net8.0`, `lib/net10.0`, documentação XML e `README.md` da pasta `TEC.ORM.SqlServer/` |
+| `TEC.ORM` | `lib/net10.0`, documentação XML, `README.md` da pasta `TEC.ORM/` e o gerador em `analyzers/dotnet/cs/TEC.ORM.Mapping.Generator.dll` |
+| `TEC.ORM.EntityFrameworkCore` | `lib/net10.0`, documentação XML e `README.md` da pasta `TEC.ORM.EntityFrameworkCore/` |
+| `TEC.ORM.SqlServer` | `lib/net10.0`, documentação XML e `README.md` da pasta `TEC.ORM.SqlServer/` |
+| `TEC.ORM.PostgreSql`, `TEC.ORM.MySql`, `TEC.ORM.Oracle` | `lib/net10.0`, documentação XML e o `README.md` da pasta de cada um |
 
 O gerador **não** é publicado sozinho. Testes, carga e benchmarks não são empacotados.
 
 > [!IMPORTANT]
 > Nos pacotes **todo aviso é erro** (CA, IDE, nullable, XML doc e, no `TEC.ORM`, IL de AOT/trimming). O
-> `TEC.ORM.SqlServer` desliga só o `IsAotCompatible` (EF Core e Dapper), com comentário no csproj.
+> `TEC.ORM.EntityFrameworkCore` e os quatro provedores desligam só o `IsAotCompatible` (EF Core e Dapper); o comentário
+> explicativo está no csproj do `TEC.ORM.SqlServer`.
 
 > [!NOTE]
-> O núcleo expõe internos ao satélite (`InternalsVisibleTo Include="TEC.ORM.SqlServer"`), inclusive os polyfills do
-> `net8.0`; por isso o `TEC.ORM.SqlServer` remove a cópia local (`<Compile Remove="$(TecRepoRoot)build/Polyfills/*.cs" />`)
-> e os dois pacotes precisam ser usados **na mesma versão**.
+> O núcleo e o `TEC.ORM.EntityFrameworkCore` expõem internos aos satélites (`InternalsVisibleTo` para `TEC.ORM.EntityFrameworkCore`,
+> `TEC.ORM.SqlServer`, `TEC.ORM.PostgreSql`, `TEC.ORM.MySql` e `TEC.ORM.Oracle`); por isso os pacotes precisam ser usados
+> **na mesma versão**.
 
 ### Lock files
 
@@ -165,7 +171,7 @@ dotnet restore TEC.ORM.slnx --force-evaluate
 | `TecUseLocalProjects` | `false` (sempre `false` com `CI=true`) | `true` liga a troca de `TecReference` por `ProjectReference` quando o vizinho existe |
 | `TecComponentsRoot` | Pasta acima do repositório | Onde procurar os vizinhos |
 | `PackageVersion` dos TEC.* (`Directory.Packages.props`) | `0.0.1` | Versão publicada de cada TEC.* consumido no modo pacote (o Dependabot atualiza) |
-| `Version` (`Directory.Build.props`) | `0.1.0` | Versão única dos dois pacotes; base das prévias do CI (`<Version>-preview.N` a cada push na `main`). Suba depois de publicar `X.Y.Z` |
+| `Version` (`Directory.Build.props`) | `0.0.1` | Versão única dos seis pacotes; base das prévias do CI (`<Version>-preview.N` a cada push na `main`). Suba depois de publicar `X.Y.Z` |
 | `EmitCompilerGeneratedFiles` | `false` | Grava o código do gerador em `obj/` |
 
 ---
@@ -178,7 +184,6 @@ dotnet restore TEC.ORM.slnx --force-evaluate
 | `401`/`403` no restore | PAT sem `read:packages` ou expirado | Gere outro PAT e refaça o `dotnet nuget update source tec-interno` |
 | `NU1004` | Lock file desatualizado | Regenere com `dotnet restore TEC.ORM.slnx --force-evaluate` |
 | `NU1901`–`NU1904` | Vulnerabilidade conhecida | Atualize no `Directory.Packages.props` e regenere os locks |
-| `CS0436` (tipo duplicado) no `TEC.ORM.SqlServer` | Polyfill compilado de novo | Mantenha o `<Compile Remove=...Polyfills/*.cs />` |
 | `dotnet test` roda 0 testes (código 5) | `-nologo` | Remova `-nologo` |
 | Métodos gerados não aparecem | Gerador não referenciado | Projetos da solução usam `OutputItemType="Analyzer"` no `ProjectReference` do gerador |
 

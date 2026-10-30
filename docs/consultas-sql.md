@@ -37,7 +37,7 @@ sequenceDiagram
         G-->>App: ORM_CONSULTA_NAO_PERMITIDA (sem abrir conexão)
     end
     Q->>S: OpenConnectionAsync(ReadOnly)
-    S-->>Q: conexão do segredo de leitura, ApplicationIntent=ReadOnly
+    S-->>Q: conexão do segredo de leitura (SQL Server: ApplicationIntent=ReadOnly)
     Q->>Db: comando parametrizado, CommandTimeout
     loop uma linha por vez
         Db-->>Q: linha
@@ -54,7 +54,7 @@ sequenceDiagram
 | Característica | Detalhe |
 |---|---|
 | Entrada | Só `SqlQuery` (sempre parametrizada): não existe sobrecarga com `string` solta |
-| Conexão | `OrmConnectionKind.ReadOnly`: segredo `ReadOnlyConnectionSecretName` (ou o principal) com `ApplicationIntent=ReadOnly`; uma conexão por chamada (o pool reaproveita) |
+| Conexão | `OrmConnectionKind.ReadOnly`: segredo `ReadOnlyConnectionSecretName` (ou o principal); no SQL Server com `ApplicationIntent=ReadOnly`, no PostgreSQL, MySQL e Oracle dentro de uma transação `READ ONLY`; uma conexão por chamada (o pool reaproveita) |
 | Transação | **Não** participa da transação do EF Core / `IUnitOfWork` nem de um `TransactionScope` ambiente: a conexão de leitura tem `Enlist=false` (sem promoção a transação distribuída). Dentro do escopo, ela lê só o que já foi confirmado |
 | Exclusão lógica | **Não** aplica o filtro global: escreva `IsDeleted = 0` no SQL |
 | Limites | `CommandTimeoutSeconds` e `MaxQueryRows`; resultado lido em fluxo, sem carregar tudo antes |
@@ -118,7 +118,7 @@ public sealed class ReportService(IOrmQueryExecutor queries)
 
 | Membro | Retorno | Descrição |
 |---|---|---|
-| `Interpolated(string name, FormattableString sql)` | `SqlQuery` | Cada valor interpolado vira `@p0`, `@p1`...; o valor nunca entra no texto. `{{`/`}}` são preservados |
+| `Interpolated(string name, FormattableString sql)` | `SqlQuery` | Cada valor interpolado vira `@p0`, `@p1`... (no Oracle o executor usa `:p0`, `:p1`...); o valor nunca entra no texto. `{{`/`}}` são preservados |
 | `Create<TParameters>(string name, string sql, TParameters parameters)` | `SqlQuery` | SQL **constante** + objeto (cada propriedade pública legível vira `@Propriedade`). Um `IReadOnlyDictionary<string, object?>` é encaminhado à sobrecarga de dicionário. Anotado para trimming |
 | `Create(string name, string sql, IReadOnlyDictionary<string, object?>? parameters = null)` | `SqlQuery` | SQL constante + parâmetros nomeados (sem `@`), nomes validados; o dicionário é **copiado** |
 | `Name` | `string` | Nome para logs, traces e métricas (baixa cardinalidade) |
@@ -137,9 +137,23 @@ public sealed class ReportService(IOrmQueryExecutor queries)
 
 ### OrmQueryExecutor (Dapper)
 
-> `TEC.ORM.EntityFrameworkCore` · `class` (membros `virtual`) · pacote `TEC.ORM.EntityFrameworkCore` (utilizado por todos os provedores: SQL Server, PostgreSQL, MySQL e Oracle)
+> `TEC.ORM.EntityFrameworkCore` · `class` (membros `virtual`) · pacote `TEC.ORM.EntityFrameworkCore` (o mesmo nos quatro provedores)
 
-Construtor: `OrmQueryExecutor(IOrmConnectionSecurity security, IOrmOperationRunner runner, OrmOptions options, IReadOnlySqlValidator? sqlValidator = null)`.
+Construtor: `OrmQueryExecutor(IOrmConnectionSecurity security, IOrmOperationRunner runner, OrmOptions options,
+IReadOnlySqlValidator? sqlValidator = null)`. O validador vem do dialeto (`ISqlDialect.ReadOnlyValidator`): no SQL Server é
+o `ReadOnlySqlGuard` (T-SQL, lista da seção "Verificação de somente leitura" abaixo); as palavras recusadas no PostgreSQL,
+no MySQL e no Oracle estão em [🛡️ Segurança](seguranca.md#provedores-postgresql-mysql-e-oracle). Sem validador para o banco
+configurado, com `EnforceReadOnlyQueries = true`, nenhuma consulta passa (`ORM_CONSULTA_NAO_PERMITIDA`).
+
+No PostgreSQL, no MySQL e no Oracle a consulta roda numa transação `READ ONLY`, aberta antes do comando e desfeita no fim
+(segunda barreira, depois do validador). O SQL Server não tem transação somente leitura: lá a proteção é o login de leitura
+só com `SELECT`, com `ApplicationIntent=ReadOnly`.
+
+> [!WARNING]
+> No `SqlQuery.Interpolated`, os marcadores saem com o prefixo do banco: `:p0` no Oracle, `@p0` nos demais. No
+> `SqlQuery.Create`, o texto vai como foi escrito: use `:Nome` no Oracle e `@Nome` nos outros. O exemplo de paginação com
+> `OFFSET ... FETCH` abaixo não vale para o MySQL (`LIMIT`). Listas em `IN {ids}` viram um parâmetro por item (até 2.000), e
+> o Oracle limita um `IN` a 1.000 expressões.
 
 | Comportamento | Detalhe |
 |---|---|

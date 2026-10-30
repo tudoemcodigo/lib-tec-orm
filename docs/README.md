@@ -26,7 +26,7 @@
 | 1 | [📝 Repositório genérico (CRUD)](repositorio-crud.md) | `IOrmRepository<TEntity, TKey>`, `OrmRepositoryExtensions` e `OrmRepository<TEntity, TKey>`: criar, ler, atualizar, excluir (lógica e física), buscar, listar, projetar para DTO e especializar |
 | 2 | [🔎 Especificações e paginação](especificacoes-e-paginacao.md) | `Specification<T>`, `PageRequest`, `[Sortable]` e como a listagem monta a consulta |
 | 3 | [📊 Consultas SQL](consultas-sql.md) | `IOrmQueryExecutor`, `SqlQuery`, `MaxQueryRows`, join com `splitOn` e verificação de somente leitura |
-| 4 | [🗑️ Exclusão lógica](exclusao-logica.md) | `ISoftDelete`, `Entity<TKey>`, `OrmDbContext`, convenções, filtro global (EF 8/10) e propagação |
+| 4 | [🗑️ Exclusão lógica](exclusao-logica.md) | `ISoftDelete`, `Entity<TKey>`, `OrmDbContext`, convenções, filtro global nomeado e propagação |
 | 5 | [🕵️ Auditoria](auditoria.md) | `IAuditable`, `AuditableEntity<TKey>`, `OrmIdentity`, `UseTecOrmIdentity` e identidade em cada cenário |
 | 6 | [🔁 Transação](transacao.md) | `OrmUnitOfWork` (`IUnitOfWork` do TEC.Cqrs), commands aninhados e uso manual |
 | 7 | [🔂 Idempotência](idempotencia.md) | `EfIdempotencyStore<TContext>`, `AddTecIdempotency`, `AddTecOrmIdempotency` e limpeza: `Idempotency-Key` com reserva atômica no banco |
@@ -43,7 +43,14 @@
 | 18 | [🔍 Revisão técnica](revisao-tecnica.md) | Revisão de segurança e qualidade de 2026-10-19: achados por severidade, evidências, correções sugeridas e melhorias |
 
 Fora de `docs/`: [⚙️ CI/CD](../.github/workflows/README.md) · [📝 Changelog](../CHANGELOG.md) · READMEs dos pacotes
-([TEC.ORM](../TEC.ORM/README.md), [TEC.ORM.SqlServer](../TEC.ORM.SqlServer/README.md)).
+([TEC.ORM](../TEC.ORM/README.md), [TEC.ORM.EntityFrameworkCore](../TEC.ORM.EntityFrameworkCore/README.md),
+[TEC.ORM.SqlServer](../TEC.ORM.SqlServer/README.md), [TEC.ORM.PostgreSql](../TEC.ORM.PostgreSql/README.md),
+[TEC.ORM.MySql](../TEC.ORM.MySql/README.md), [TEC.ORM.Oracle](../TEC.ORM.Oracle/README.md)).
+
+Os quatro provedores usam o mesmo pipeline (`TEC.ORM.EntityFrameworkCore`), e os guias usam o SQL Server (`AddTecOrm`) nos
+exemplos. O que muda por banco (política da conexão, validador de leitura, transação somente leitura, tradução de erros e SQL
+da idempotência) está no README de cada provedor e nas seções de diferenças em [Consultas SQL](consultas-sql.md),
+[Erros](erros.md), [Idempotência](idempotencia.md) e [Segurança](seguranca.md).
 
 ---
 
@@ -75,7 +82,7 @@ flowchart TD
 
 | Convenção | Significado |
 |---|---|
-| Fonte da verdade | O código atual de `TEC.ORM`, `TEC.ORM.SqlServer` e `TEC.ORM.Mapping.Generator` |
+| Fonte da verdade | O código atual de `TEC.ORM`, `TEC.ORM.EntityFrameworkCore`, `TEC.ORM.Mapping.Generator` e dos provedores (`TEC.ORM.SqlServer`, `TEC.ORM.PostgreSql`, `TEC.ORM.MySql` e `TEC.ORM.Oracle`) |
 | Estrutura | Breadcrumb, 📑 Sumário, 🎯 Visão geral, 🚀 Uso, ⚙️ Opções, ❌ Erros, 🛡️ Segurança, ❓ Perguntas frequentes e rodapé de navegação |
 | Exemplos | Domínio fictício de vendas (`Customer`, `Order`, `Product`, `Account`, `SalesContext`): tipos da aplicação, não da biblioteca. Identificadores em inglês; comentários e mensagens em português |
 | `Result`, `Error`, `ErrorType`, `PagedResult`, `ICurrentUser` | Vêm do [TEC.Core](https://github.com/tudoemcodigo/lib-tec-core) |

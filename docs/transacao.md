@@ -49,7 +49,7 @@ stateDiagram-v2
 
 ### OrmUnitOfWork
 
-> `TEC.ORM.SqlServer.UnitOfWork` · `sealed class OrmUnitOfWork(DbContext context) : IUnitOfWork` · pacote `TEC.ORM.SqlServer`
+> `TEC.ORM.EntityFrameworkCore.UnitOfWork` · `sealed class OrmUnitOfWork(DbContext context) : IUnitOfWork` · pacote `TEC.ORM.EntityFrameworkCore` (o mesmo nos quatro provedores)
 
 | Membro | Comportamento |
 |---|---|

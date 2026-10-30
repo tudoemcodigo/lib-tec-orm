@@ -9,13 +9,13 @@ using TEC.Core.Responses.Pagination;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;
-using TEC.ORM.Mapping;
-using TEC.ORM.Paging;
-using TEC.ORM.Specifications;
 using TEC.ORM.EntityFrameworkCore.Auditing;
 using TEC.ORM.EntityFrameworkCore.Configuration;
 using TEC.ORM.EntityFrameworkCore.Diagnostics;
 using TEC.ORM.EntityFrameworkCore.SoftDelete;
+using TEC.ORM.Mapping;
+using TEC.ORM.Paging;
+using TEC.ORM.Specifications;
 
 namespace TEC.ORM.EntityFrameworkCore;
 
@@ -196,7 +196,9 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// <para>Exige um provedor relacional (o InMemory não executa <c>ExecuteDelete</c>) e não suporta herança TPT/TPC.</para>
     /// <para>Auditoria: o log 3007 registra o autor (<c>ICurrentUser</c>) e as linhas removidas. Em entidade
     /// <see cref="IAuditable"/>, sem identidade autenticada a exclusão é recusada (<see cref="OrmErrors.AuditIdentityRequired"/>),
-    /// como nas demais gravações.</para>
+    /// como nas demais gravações. Em entidade <c>[Auditable]</c> com a trilha histórica ligada, a linha é lida antes do
+    /// <c>DELETE</c> e a exclusão gera um <c>OrmAuditRecord</c> (<c>Deleted</c>, com os valores antigos), na mesma transação
+    /// (aberta aqui se não houver uma).</para>
     /// </remarks>
     [HardDelete]
     public virtual Task<Result> HardDeleteAsync(TKey id, CancellationToken cancellationToken = default)
@@ -209,7 +211,21 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
             if (IdentifyHardDelete(operation) is { } denied)
                 return denied;
 
-            int rows = await IncludingSoftDeleted().Where(HasId(id)).ExecuteDeleteAsync(token).ConfigureAwait(false);
+            int rows;
+            if (HistoryFor() is not { } history)
+                rows = await IncludingSoftDeleted().Where(HasId(id)).ExecuteDeleteAsync(token).ConfigureAwait(false);
+            else
+                rows = await InTransactionAsync(async innerToken =>
+                {
+                    var current = await IncludingSoftDeleted().AsNoTracking().Where(HasId(id)).FirstOrDefaultAsync(innerToken)
+                        .ConfigureAwait(false);
+                    if (current is null)
+                        return 0;
+                    int deleted = await IncludingSoftDeleted().Where(HasId(id)).ExecuteDeleteAsync(innerToken).ConfigureAwait(false);
+                    if (deleted > 0)
+                        await history.WriteHardDeletedAsync(Context, Set.EntityType, [current], innerToken).ConfigureAwait(false);
+                    return deleted;
+                }, token).ConfigureAwait(false);
             operation.AffectedRows = rows;
             if (rows == 0)
                 return OrmErrors.NotFound();
@@ -223,9 +239,12 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
 
     /// <inheritdoc />
     /// <remarks>
-    /// Um único <c>DELETE ... WHERE</c> no banco, como em <see cref="HardDeleteAsync(TKey, CancellationToken)"/> (mesma
+    /// <para>Um único <c>DELETE ... WHERE</c> no banco, como em <see cref="HardDeleteAsync(TKey, CancellationToken)"/> (mesma
     /// auditoria: autor e linhas removidas no log 3007). Instâncias rastreadas no contexto não são desanexadas (o critério pode
-    /// não ser avaliável em memória): não as regrave.
+    /// não ser avaliável em memória): não as regrave.</para>
+    /// <para>Em entidade <c>[Auditable]</c> com a trilha histórica ligada, as linhas que atendem ao critério são lidas antes
+    /// (no máximo <see cref="OrmOptions.MaxFindResults"/>; acima disso, <c>ORM_LIMITE_EXCEDIDO</c> sem excluir nada) e removidas
+    /// uma a uma pela chave, cada uma com o seu <c>OrmAuditRecord</c>, na mesma transação.</para>
     /// </remarks>
     [HardDelete]
     public virtual Task<Result<long>> HardDeleteAsync(ISpecification<TEntity> specification, CancellationToken cancellationToken = default)
@@ -239,10 +258,63 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
             if (IdentifyHardDelete(operation) is { } denied)
                 return denied;
 
-            long rows = await IncludingSoftDeleted().Where(specification.Criteria).ExecuteDeleteAsync(token).ConfigureAwait(false);
-            operation.AffectedRows = rows;
-            return Result<long>.Success(rows);
+            if (HistoryFor() is not { } history)
+            {
+                long rows = await IncludingSoftDeleted().Where(specification.Criteria).ExecuteDeleteAsync(token).ConfigureAwait(false);
+                operation.AffectedRows = rows;
+                return Result<long>.Success(rows);
+            }
+
+            int limit = options.MaxFindResults;
+            long? audited = await InTransactionAsync<long?>(async innerToken =>
+            {
+                var targets = await IncludingSoftDeleted().AsNoTracking().Where(specification.Criteria).Take(limit + 1)
+                    .ToListAsync(innerToken).ConfigureAwait(false);
+                if (targets.Count > limit)
+                    return null;   // acima do teto: nada é excluído
+
+                // Pela chave de cada linha lida: o que entrar no critério depois da leitura não é removido sem trilha
+                var deleted = new List<object>(targets.Count);
+                foreach (var entity in targets)
+                {
+                    if (await IncludingSoftDeleted().Where(HasId(entity.Id)).ExecuteDeleteAsync(innerToken).ConfigureAwait(false) > 0)
+                        deleted.Add(entity);
+                }
+                await history.WriteHardDeletedAsync(Context, Set.EntityType, deleted, innerToken).ConfigureAwait(false);
+                return deleted.Count;
+            }, token).ConfigureAwait(false);
+
+            if (audited is not { } removed)
+                return OrmErrors.TooManyResults(limit);
+            operation.AffectedRows = removed;
+            return Result<long>.Success(removed);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Trilha histórica da exclusão física: o interceptor do contexto, se a entidade é <c>[Auditable]</c> e a trilha está ligada
+    /// (<see cref="OrmOptions.EnableHistoricalAudit"/>); senão <c>null</c>.
+    /// </summary>
+    private HistoricalAuditInterceptor? HistoryFor() =>
+        HistoricalAuditInterceptor.IsAuditable(typeof(TEntity)) ? HistoricalAuditInterceptor.Find(Context) : null;
+
+    /// <summary>
+    /// Executa na transação corrente (do contexto ou ambiente) ou, sem nenhuma, numa transação própria confirmada no fim (e
+    /// desfeita se <paramref name="action"/> falhar).
+    /// </summary>
+    private async Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
+    {
+        if (Context.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null)
+            return await action(cancellationToken).ConfigureAwait(false);
+
+        var transaction = await Context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using (transaction.ConfigureAwait(false))
+        {
+            var result = await action(cancellationToken).ConfigureAwait(false);
+            // Sem cancelamento no meio do COMMIT: o resultado ficaria desconhecido
+            await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            return result;
+        }
     }
 
     /// <summary>

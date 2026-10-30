@@ -2,8 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using TEC.Core.Security;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;
-using TEC.ORM.SqlServer.Auditing;
-using TEC.ORM.SqlServer.SoftDelete;
+using TEC.ORM.EntityFrameworkCore.Auditing;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Tests.Fakes;
 
 namespace TEC.ORM.Tests;
@@ -233,9 +233,7 @@ public class AuditTests
         var entityType = context.Model.FindEntityType(typeof(Note))!;
 
         await Assert.That(SoftDeleteQueryFilterConvention.HasSoftDeleteFilter(entityType)).IsTrue();
-#if NET10_0_OR_GREATER
         await Assert.That(entityType.GetDeclaredQueryFilters().Count()).IsEqualTo(1);
-#endif
         foreach (string name in new[] { nameof(IAuditable.CreatedBy), nameof(IAuditable.UpdatedBy), nameof(IAuditable.DeletedBy) })
             await Assert.That(entityType.FindProperty(name)!.GetMaxLength()).IsEqualTo(256);
         foreach (string name in new[] { nameof(IAuditable.CreatedByTenant), nameof(IAuditable.UpdatedByTenant), nameof(IAuditable.DeletedByTenant) })

@@ -4,8 +4,14 @@ using TEC.Cqrs.Persistence;
 namespace TEC.ORM.EntityFrameworkCore.UnitOfWork;
 
 /// <summary>
-/// <see cref="IUnitOfWork"/> do TEC.Cqrs sobre o <c>DbContext</c> do TEC.ORM.
+/// <see cref="IUnitOfWork"/> do TEC.Cqrs sobre o <c>DbContext</c> do TEC.ORM: com ele registrado, o <c>TransactionBehavior</c>
+/// envolve cada command numa transação, sem configuração adicional. Também pode ser usado direto.
 /// </summary>
+/// <remarks>
+/// As escritas do repositório já chamam <c>SaveChangesAsync</c>; dentro da transação elas só ficam visíveis a outras conexões
+/// depois do <see cref="CommitAsync"/>. O rollback e um commit que falha descartam também o que estiver no rastreador de
+/// alterações (<c>ChangeTracker.Clear()</c>): as entidades rastreadas pelo escopo deixam de ser rastreadas.
+/// </remarks>
 public sealed class OrmUnitOfWork(DbContext context) : IUnitOfWork
 {
     /// <inheritdoc />
@@ -31,6 +37,8 @@ public sealed class OrmUnitOfWork(DbContext context) : IUnitOfWork
         }
         catch
         {
+            // Nada foi confirmado: o que ficou no rastreador (inclusive o que o SaveChanges já tinha aceitado) é descartado,
+            // como no rollback, para não ser regravado fora da transação pela próxima operação do escopo
             context.ChangeTracker.Clear();
             throw;
         }

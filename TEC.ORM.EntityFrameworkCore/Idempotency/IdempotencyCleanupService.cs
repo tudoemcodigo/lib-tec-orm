@@ -6,12 +6,9 @@ using TEC.ORM.EntityFrameworkCore.Internal;
 
 namespace TEC.ORM.EntityFrameworkCore.Idempotency;
 
-internal sealed class IdempotencyCleanupService<TContext>(
-    IServiceScopeFactory scopes,
-    OrmIdempotencyOptions options,
-    TimeProvider timeProvider,
-    ILogger<IdempotencyCleanupService<TContext>> logger)
-    : BackgroundService where TContext : DbContext
+/// <summary>Remove periodicamente as chaves de idempotência expiradas (lotes curtos, um escopo por ciclo).</summary>
+internal sealed class IdempotencyCleanupService<TContext>(IServiceScopeFactory scopes, OrmIdempotencyOptions options, TimeProvider timeProvider,
+    ILogger<IdempotencyCleanupService<TContext>> logger) : BackgroundService where TContext : DbContext
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -26,7 +23,9 @@ internal sealed class IdempotencyCleanupService<TContext>(
             {
                 break;
             }
+#pragma warning disable CA1031 // falha de limpeza não pode derrubar o host: registra e tenta no próximo ciclo
             catch (Exception ex)
+#pragma warning restore CA1031
             {
                 OrmLog.IdempotencyPurgeFailed(logger, ex, typeof(TContext).Name);
             }

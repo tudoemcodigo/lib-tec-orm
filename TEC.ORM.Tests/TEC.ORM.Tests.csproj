@@ -14,7 +14,7 @@
     <UserSecretsId>tudoemcodigo-tec-testes</UserSecretsId>
   </PropertyGroup>
 
-  <!-- Versão por runtime (8.0.x no net8.0, 10.0.x no net10.0) definida no Directory.Packages.props -->
+  <!-- Versão do EF Core (10.0.x) definida no Directory.Packages.props -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
@@ -41,15 +41,8 @@
 
   <!--
     Testes do gerador: compilam código em memória com o Roslyn (4.12 ou mais novo, a versão contra a qual o gerador é
-    compilado). No net10.0 o Roslyn 5.x já vem pelo EF Core Design. No net8.0 o EF Core Design 8 fixa o Workspaces 4.5 (só
-    usado pelo dotnet ef, não nos testes): o Roslyn sobe para 4.12 e o aviso de restrição (NU1608) é esperado.
+    compilado). O Roslyn 5.x já vem pelo EF Core Design 10.
   -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-  </ItemGroup>
-  <PropertyGroup>
-    <NoWarn>$(NoWarn);NU1608</NoWarn>
-  </PropertyGroup>
 
   <ItemGroup>
     <!-- Gerador do mapeamento: roda nesta compilação (DTOs de teste) e é referenciado pelos testes de diagnóstico -->

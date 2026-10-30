@@ -4,27 +4,59 @@ using System.Diagnostics.Metrics;
 namespace TEC.ORM.EntityFrameworkCore.Diagnostics;
 
 /// <summary>Rastreamento e métricas (OpenTelemetry) do TEC.ORM.</summary>
+/// <remarks>
+/// Segurança: traces e métricas nunca levam identificador do registro, SQL, valores de parâmetros nem dados da conexão
+/// (costumam ser enviados a terceiros); o identificador fica só no log de auditoria. As dimensões são de baixa cardinalidade:
+/// banco (<c>db.system.name</c>), provedor, operação, alvo (nome da entidade ou da consulta) e código do erro.
+/// </remarks>
+/// <example>
+/// <code>
+/// // Com o TEC.Observability nada é preciso: o AddTecObservability exporta as fontes "TEC.*". Sem ele:
+/// builder.Services.AddOpenTelemetry()
+///     .WithTracing(t => t.AddSource(OrmDiagnostics.ActivitySourceName))
+///     .WithMetrics(m => m.AddMeter(OrmDiagnostics.MeterName));
+/// </code>
+/// </example>
 public static class OrmDiagnostics
 {
-    /// <summary>Nome da fonte de atividades OpenTelemetry.</summary>
+    /// <summary>
+    /// Nome do <see cref="System.Diagnostics.ActivitySource"/>. Cada operação gera uma <c>Activity</c> (Client)
+    /// <c>"{operação} {alvo}"</c> com as tags <c>db.system.name</c>, <c>orm.provider</c>, <c>orm.operation</c>,
+    /// <c>orm.target</c>, <c>orm.success</c>, <c>orm.retries</c> (só quando houve nova tentativa por falha transitória) e, em
+    /// falha, <c>error.type</c> (o mesmo valor da métrica).
+    /// </summary>
     public const string ActivitySourceName = "TEC.ORM";
 
-    /// <summary>Nome do medidor de métricas OpenTelemetry.</summary>
+    /// <summary>
+    /// Nome do <see cref="System.Diagnostics.Metrics.Meter"/>. Instrumento <see cref="OperationDurationName"/> (histograma,
+    /// segundos) com <c>db.system.name</c>, <c>orm.provider</c>, <c>orm.operation</c>, <c>orm.target</c> e, em falha,
+    /// <c>error.type</c> (código de <c>OrmErrors</c>, ou <c>canceled</c>). A contagem por operação/resultado vem do histograma.
+    /// Exportado sem configuração pelo <c>AddTecObservability</c> do TEC.Observability (prefixo <c>TEC.*</c>).
+    /// </summary>
     public const string MeterName = "TEC.ORM";
 
-    /// <summary>Nome da métrica de duração de operação.</summary>
+    /// <summary>Histograma da duração das operações (segundos).</summary>
     public const string OperationDurationName = "orm.operation.duration";
 
-    /// <summary>Nome da métrica de mudanças de estado de circuito.</summary>
+    /// <summary>
+    /// Contador de mudanças de estado do circuit breaker da abertura de conexões, com <c>orm.connection</c> (<c>escrita</c> ou
+    /// <c>leitura</c>) e <c>orm.circuit.state</c> (<c>open</c>, <c>half_open</c>, <c>closed</c>).
+    /// </summary>
     public const string CircuitStateChangesName = "orm.circuit.state_changes";
 
-    /// <summary>Identificador do provedor EF Core.</summary>
+    /// <summary>Provedor das operações de CRUD.</summary>
     public const string EntityFrameworkProvider = "entityframework";
 
-    /// <summary>Identificador do provedor Dapper.</summary>
+    /// <summary>Provedor das leituras complexas.</summary>
     public const string DapperProvider = "dapper";
 
-    /// <summary>Identificador de erro de cancelamento.</summary>
+    /// <summary>
+    /// Valor de <c>db.system.name</c> sem dialeto configurado (opções montadas à mão). Com dialeto, vale o
+    /// <c>ISqlDialect.DbSystemName</c> (ex.: <c>microsoft.sql_server</c>, <c>postgresql</c>, <c>mysql</c>, <c>oracle.db</c>).
+    /// </summary>
+    public const string UnknownDbSystem = "other_sql";
+
+    /// <summary>Valor de <c>error.type</c> quando a operação é cancelada.</summary>
     public const string CanceledErrorType = "canceled";
 
     internal const string DbSystemTag = "db.system.name";
@@ -41,6 +73,7 @@ public static class OrmDiagnostics
     internal const string CircuitClosed = "closed";
 
     internal static readonly ActivitySource ActivitySource = new(ActivitySourceName);
+
     internal static readonly Meter Meter = new(MeterName, typeof(OrmDiagnostics).Assembly.GetName().Version?.ToString());
 
     internal static readonly Histogram<double> OperationDuration = Meter.CreateHistogram<double>(
@@ -49,12 +82,14 @@ public static class OrmDiagnostics
     internal static readonly Counter<long> CircuitStateChanges = Meter.CreateCounter<long>(
         CircuitStateChangesName, unit: "{change}", description: "Mudanças de estado do circuit breaker da abertura de conexões.");
 
+    /// <summary>Registra uma mudança de estado do circuito.</summary>
     internal static void RecordCircuitState(string connection, string state)
     {
         if (CircuitStateChanges.Enabled)
             CircuitStateChanges.Add(1, new KeyValuePair<string, object?>(ConnectionTag, connection), new KeyValuePair<string, object?>(CircuitStateTag, state));
     }
 
+    /// <summary>Registra a duração de uma operação. <paramref name="errorType"/> só em falha.</summary>
     internal static void RecordOperation(string dbSystem, string provider, string operation, string target, double seconds, string? errorType)
     {
         if (!OperationDuration.Enabled)
@@ -69,7 +104,6 @@ public static class OrmDiagnostics
         };
         if (errorType is not null)
             tags.Add(ErrorTypeTag, errorType);
-
         OperationDuration.Record(seconds, tags);
     }
 }

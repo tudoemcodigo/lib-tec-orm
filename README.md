@@ -6,10 +6,10 @@
 
 **Persistência padronizada, agnóstica e segura por padrão: CRUD para qualquer entidade, consultas SQL via Dapper, suporte a SQL Server, PostgreSQL, MySQL e Oracle, trilha histórica de auditoria com diffs, exclusão lógica e conversão entidade ↔ DTO gerada na compilação, com credenciais lidas exclusivamente de cofres.**
 
-EF Core · Dapper · Multi-Banco (SQL Server · PostgreSQL · MySQL · Oracle) · `Result` em vez de exceção · Trilha Histórica com Diffs · Mascaramento de Dados Sensíveis · Proteção Estrita de Connection String · Exclusão lógica · Auditoria M2M & ApiKey · Source Generator · .NET 8 e 10
+EF Core · Dapper · Multi-Banco (SQL Server · PostgreSQL · MySQL · Oracle) · `Result` em vez de exceção · Trilha Histórica com Diffs · Mascaramento de Dados Sensíveis · Proteção Estrita de Connection String · Exclusão lógica · Auditoria M2M & ApiKey · Source Generator · .NET 10
 
 [![CI](https://github.com/tudoemcodigo/lib-tec-orm/actions/workflows/ci.yml/badge.svg)](https://github.com/tudoemcodigo/lib-tec-orm/actions/workflows/ci.yml)
-[![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%2010.0-512BD4?logo=dotnet&logoColor=white)](#-compatibilidade)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](#-compatibilidade)
 [![Native AOT](https://img.shields.io/badge/Native%20AOT-TEC.ORM-512BD4)](#-compatibilidade)
 [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.0.1-blue)](CHANGELOG.md)
 [![Licença: Apache 2.0](https://img.shields.io/badge/licen%C3%A7a-Apache%202.0-blue)](LICENSE)
@@ -67,7 +67,7 @@ EF Core · Dapper · Multi-Banco (SQL Server · PostgreSQL · MySQL · Oracle) �
 | [`TEC.ORM.EntityFrameworkCore`](TEC.ORM.EntityFrameworkCore/README.md) | Núcleo base agnóstico: interceptor de auditoria com diffs, proteção de connection string, repositório genérico, executor Dapper, idempotência e abstrações de dialetos | Infraestrutura |
 | [`TEC.ORM.SqlServer`](TEC.ORM.SqlServer/README.md) | Provedor especialista para **Microsoft SQL Server** e **Azure SQL** | Infraestrutura / Host |
 | [`TEC.ORM.PostgreSql`](TEC.ORM.PostgreSql/README.md) | Provedor especialista para **PostgreSQL** (Npgsql) | Infraestrutura / Host |
-| [`TEC.ORM.MySql`](TEC.ORM.MySql/README.md) | Provedor especialista para **MySQL / MariaDB** (Pomelo no .NET 8, MySql.EntityFrameworkCore no .NET 10, MySqlConnector) | Infraestrutura / Host |
+| [`TEC.ORM.MySql`](TEC.ORM.MySql/README.md) | Provedor especialista para **MySQL / MariaDB** (`MySql.EntityFrameworkCore`, com o driver MySql.Data também no Dapper) | Infraestrutura / Host |
 | [`TEC.ORM.Oracle`](TEC.ORM.Oracle/README.md) | Provedor especialista para **Oracle Database** (`Oracle.EntityFrameworkCore`) | Infraestrutura / Host |
 
 ---
@@ -183,7 +183,7 @@ builder.Services.AddTecOrmOracle<AppDbContext>(orm =>
 
 ### Auditoria com Diffs (`OldValues` / `NewValues`)
 
-Basta anotar a entidade com `[Auditable]`. O interceptor transacional grava automaticamente cada alteração na tabela `OrmAuditRecords` na mesma transação atômica.
+Basta anotar a entidade com `[Auditable]`. O interceptor grava cada alteração na tabela da trilha (`OrmOptions.AuditLogTableName`, padrão `OrmAuditRecords`) na mesma transação do salvamento. Quando a chave é gerada pelo banco (identity), o registro sai depois do `INSERT`, ainda na mesma transação, já com a chave real.
 
 ```csharp
 using TEC.ORM.Auditing;
@@ -214,7 +214,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 ### Suporte a Atores M2M e ApiKey
 
-O resolvedor de auditoria identifica e grava não apenas usuários humanos, mas também integrações e processos não supervisionados:
+O `DefaultOrmAuditContextProvider` identifica e grava usuários, integrações e processos não supervisionados. O registro de cada provedor (`AddTecOrm`, `AddTecOrmPostgreSql`, `AddTecOrmMySql`, `AddTecOrmOracle`) já o configura com o `ICurrentUser` da operação, o mesmo das colunas de autoria; para trocar, registre o seu `IOrmAuditContextProvider` antes:
 
 - **`User`**: Requisições de usuários finais autenticados.
 - **`M2M`**: Requisições Machine-to-Machine com Client Credentials via `TEC.Security`.
@@ -230,8 +230,8 @@ O `ProtectedConnectionString` encapsula as credenciais obtidas dos cofres:
 - **`ToString()`**: Retorna invariavelmente `"***"`.
 - **Debugger**: Ocultado com `[DebuggerDisplay("***")]` e `[DebuggerBrowsable(DebuggerBrowsableState.Never)]`.
 - **IntelliSense**: Ocultado via `[EditorBrowsable(EditorBrowsableState.Never)]`.
-- **Driver ADO.NET**: Descriptografado apenas internamente no momento estrito da atribuição ao driver nativo (`Reveal()`).
-- **Logs**: As mensagens do EF Core e ADO.NET são suprimidas contra vazamentos de senhas e dados de colunas.
+- **Driver ADO.NET**: O valor puro só sai por `Reveal()`, usado na atribuição ao driver. A string fica em memória como texto comum: não há criptografia em memória.
+- **Logs**: O TEC.ORM registra só o tipo da exceção de conexão e o código de erro do banco, sem `Message`. O registro de todos os provedores também desliga `EnableSensitiveDataLogging` e os eventos de erro do EF Core que repetiriam a mensagem do banco.
 
 ---
 
@@ -239,32 +239,40 @@ O `ProtectedConnectionString` encapsula as credenciais obtidas dos cofres:
 
 | Item | Suporte |
 |---|---|
-| .NET | `net8.0` e `net10.0` (LTS) |
-| Bancos Homologados | Microsoft SQL Server / Azure SQL, PostgreSQL 14+, MySQL 8+ / MariaDB, Oracle Database 19c/21c/23c |
+| .NET | `net10.0` (LTS), com EF Core 10 |
+| Bancos suportados | Microsoft SQL Server / Azure SQL, PostgreSQL, MySQL 8+ / MariaDB, Oracle Database. No Oracle, o DDL gerado pelo provedor usa por padrão a compatibilidade do 23ai (colunas `BOOLEAN`); para 19c ou 21c, passe `UseOracleSQLCompatibility` no registro |
 | Native AOT / Trimming | ✅ `TEC.ORM` (domínio, contratos e DTOs) |
-| Consultas de Alta Performance | Suporte nativo a **Dapper** em todos os provedores via `IOrmQueryExecutor` |
-| Compilador | Visual Studio 17.12 / .NET SDK 9.0.100+ (Roslyn 4.12) para o gerador de DTO |
+| Consultas de Alta Performance | **Dapper** via `IOrmQueryExecutor` em todos os provedores, com o prefixo de parâmetro do banco (`:p0` no Oracle, `@p0` nos demais) e transação somente leitura no PostgreSQL, MySQL e Oracle ([📊 Consultas SQL](docs/consultas-sql.md)) |
+| Compilador | .NET SDK 10 (os pacotes são só `net10.0`). O gerador de DTO roda a partir do Roslyn 4.12, mas esse piso não basta para consumir os pacotes |
+
+> [!NOTE]
+> **PostgreSQL, MySQL e Oracle: suporte implementado, validação de integração pendente.** Os três usam o mesmo pipeline do
+> SQL Server (identidade da auditoria, ordem dos interceptores, convenções, logs sem dados sensíveis, tempo limite dos
+> comandos, tradução de erros e mapeador do TEC.Cqrs), com testes unitários e de registro no container. Os testes de
+> integração contra cada banco existem, mas só rodam com a conexão configurada ([🧪 Testes](docs/testes.md)) e ainda não
+> foram executados contra PostgreSQL, MySQL ou Oracle reais. Detalhes em
+> [🛡️ Segurança](docs/seguranca.md#provedores-postgresql-mysql-e-oracle).
 
 ---
 
 ## 🧪 Testes
 
 ```bash
-# Testes unitários (.NET 8 e .NET 10)
+# Testes unitários
 dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category!=Integracao]"
 
-# Testes de integração com SQL Server real
-dotnet test --project TEC.ORM.Tests -c Release -f net10.0 --treenode-filter "/*/*/*/*[Category=Integracao]"
+# Testes de integração (SQL Server; PostgreSQL, MySQL e Oracle quando as conexões estão configuradas)
+dotnet test --project TEC.ORM.Tests -c Release --treenode-filter "/*/*/*/*[Category=Integracao]"
 ```
 
-- **364** testes unitários no .NET 10 e **362** no .NET 8 aprovados (100% de sucesso).
-- Cobertura completa de trilha histórica, diffs, atores (User, M2M, ApiKey, System), mascaramento sensível, proteção de credenciais e dialetos.
+- A contagem de testes sai do próprio `dotnet test` (ela varia por categoria); este README não fixa um número.
+- Cobertura de trilha histórica, diffs, atores (User, M2M, ApiKey, System), mascaramento sensível, proteção de credenciais, dialetos e registro de cada provedor. O CI testa o banco real só no SQL Server; os testes de integração do PostgreSQL, MySQL e Oracle se pulam sem as variáveis `TEC_TESTES_ORM_PG_CONEXAO`, `TEC_TESTES_ORM_MYSQL_CONEXAO` e `TEC_TESTES_ORM_ORACLE_CONEXAO`.
 
 ---
 
 ## 🤝 Contribuição
 
-Branch a partir da `main` → código **e** testes unitários → `dotnet test` nos dois alvos (.NET 8 e 10) → pull request com CI verde.
+Branch a partir da `main` → código **e** testes unitários → `dotnet test` → pull request com CI verde.
 
 ---
 

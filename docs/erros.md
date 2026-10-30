@@ -28,8 +28,8 @@
 flowchart TD
     A["Exceção"] --> B{"DbUpdateConcurrencyException?"}
     B -- sim --> C1["ORM_CONCORRENCIA"]
-    B -- não --> D{"SqlException na cadeia?"}
-    D -- sim --> E{"Número"}
+    B -- não --> D{"Exceção do driver na cadeia<br/>de InnerException?"}
+    D -- sim --> E{"Número (SQL Server; os<br/>demais bancos na tabela abaixo)"}
     E -->|"2601, 2627, 547"| C2["ORM_CONFLITO"]
     E -->|"1205"| C1
     E -->|"-2"| C3["ORM_TEMPO_ESGOTADO"]
@@ -79,14 +79,15 @@ public Task<Result<Customer>> Handle(GetCustomerQuery query, CancellationToken c
 ### Exceções fora do repositório
 
 O repositório já devolve `Result`. Mas o `SaveChangesAsync` do commit do `IUnitOfWork` (chamado pelo `TransactionBehavior`) e
-o código que usa o `DbContext` direto **lançam** exceções. O `AddTecOrm` registra um `IExceptionErrorMapper` do TEC.Cqrs que
-converte, no pipeline e no `UseTecExceptionHandler`:
+o código que usa o `DbContext` direto **lançam** exceções. O registro de cada provedor (`AddTecOrm`, `AddTecOrmPostgreSql`,
+`AddTecOrmMySql`, `AddTecOrmOracle`) registra um `IExceptionErrorMapper` do TEC.Cqrs por dialeto, que converte, no pipeline e
+no `UseTecExceptionHandler`:
 
 | Exceção | Código | HTTP |
 |---|---|---|
 | `DbUpdateConcurrencyException` (concorrência otimista, `rowversion`) | `ORM_CONCORRENCIA` | 409 |
-| `SqlException` 1205 (deadlock) | `ORM_CONCORRENCIA` | 409 |
-| `SqlException` 2601, 2627, 547 (chave única, chave estrangeira) | `ORM_CONFLITO` | 409 |
+| Deadlock (`SqlException` 1205 e os equivalentes de cada banco na tabela abaixo) | `ORM_CONCORRENCIA` | 409 |
+| Chave única ou estrangeira (`SqlException` 2601, 2627, 547 e os equivalentes de cada banco) | `ORM_CONFLITO` | 409 |
 
 As demais exceções de banco não são mapeadas: continuam como erro interno (500, sem detalhes). Assim, uma aplicação com
 `DbContext` próprio não precisa traduzir `DbUpdateConcurrencyException` à mão.
@@ -156,6 +157,32 @@ Não há opções de erro. Os limites que geram `ORM_LIMITE_EXCEDIDO` e as novas
 | Outro | — | `ORM_FALHA` |
 
 Falhas de infraestrutura vão ao log 3004 com o tipo da exceção e o número do erro, **sem a mensagem**.
+
+#### PostgreSQL, MySQL e Oracle
+
+Cada dialeto tem um tradutor próprio (`SqlServerExceptionTranslator`, `PostgreSqlExceptionTranslator`,
+`MySqlExceptionTranslator`, `OracleExceptionTranslator`), todos derivados de `OrmExceptionTranslatorBase`
+(`TEC.ORM.EntityFrameworkCore.Dialects`), que aplica a mesma ordem nos quatro bancos: recusas do próprio TEC.ORM (conexão
+recusada pelo cofre ou pela política, auditoria sem identidade, limite da propagação da exclusão lógica),
+`DbUpdateConcurrencyException`, exceção do driver procurada nas `InnerException` (o EF Core embrulha o erro do banco em
+`DbUpdateException`), `TimeoutException` e falha ao abrir a conexão. O número ou o `SQLSTATE` vai ao log 3004 e a mensagem não.
+
+| Banco | `ORM_CONFLITO` | `ORM_CONCORRENCIA` | `ORM_TEMPO_ESGOTADO` | `ORM_CONEXAO_INDISPONIVEL` |
+|---|---|---|---|---|
+| PostgreSQL (`SQLSTATE`) | 23505, 23503 | 40001, 40P01 | 57014 | 08000, 08003, 08006, 08001, 08004, 08007, 08P01, 57P01, 57P02, 57P03; `NpgsqlException` sem `SQLSTATE` |
+| MySQL (número, `MySql.Data.MySqlClient.MySqlException`) | 1062, 1586, 1451, 1452 | 1213, 1205 | 1317, 3024, 1801, 1907 | 1042, 2002, 2003, 2006, 2013 |
+| Oracle (`ORA-`) | 00001, 02291, 02292 | 00060, 00054 | 01013 | 01017, 12154, 12170, 12514, 12541, 12545 |
+
+Qualquer outro código vira `ORM_FALHA`; `TimeoutException` vira `ORM_TEMPO_ESGOTADO`. Falha transitória (nova tentativa em
+leitura): PostgreSQL 40001, 40P01, 53000, 53100, 53200, 53300, 57P03, 08006, 08001 e qualquer `NpgsqlException` que não seja
+`PostgresException`; MySQL 1205, 1213, 1040, 2006, 2013; Oracle 60, 12170, 12541, 3113, 3114.
+
+A idempotência usa só a violação de unicidade de cada banco (`IOrmExceptionTranslator.IsUniqueViolation`: 2601/2627,
+23505, 1062/1586, ORA-00001) para concluir que a chave já existe; chave estrangeira e outros erros não contam.
+
+> [!NOTE]
+> A tradução do PostgreSQL, do MySQL e do Oracle é coberta por testes unitários com as exceções dos drivers; os testes de
+> integração contra esses bancos existem, mas ainda não foram executados ([🧪 Testes](testes.md)).
 
 ### Erros de configuração e de programação
 

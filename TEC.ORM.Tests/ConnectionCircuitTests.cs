@@ -5,9 +5,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Core.Exceptions;
 using TEC.ORM.Common;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Internal;
-using TEC.ORM.SqlServer.Security;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Security;
 using TEC.ORM.Tests.Fakes;
 
 namespace TEC.ORM.Tests;
@@ -104,7 +103,7 @@ public class ConnectionCircuitTests
         }) { Timeout = 1 };
 
         var first = await Assert.That(async () => await circuit.OpenAsync(connection, default)).Throws<InvalidOperationException>();
-        await Assert.That(OrmExceptionTranslator.IsMarkedConnectionOpenFailure(first!)).IsTrue();
+        await Assert.That(OrmConnectionFailures.IsMarked(first!)).IsTrue();
         await Assert.That(() => circuit.Open(connection)).Throws<InvalidOperationException>();
 
         await Assert.That(async () => await circuit.OpenAsync(connection, default)).Throws<OrmConnectionException>();
@@ -118,7 +117,7 @@ public class ConnectionCircuitTests
         const string secret = "Server=tcp:127.0.0.1,1;Database=x;Encrypt=True;TrustServerCertificate=False;Connect Timeout=1;ConnectRetryCount=0";
         var options = Sensitive();
         var security = new OrmConnectionSecurity(TestOrm.Secrets((TestOrm.SecretName, secret)), options,
-            new CapturingLoggerProvider().CreateLogger<OrmConnectionSecurity>(), new Clock(Start));
+            new CapturingLoggerProvider().CreateLogger<OrmConnectionSecurity>(), time: new Clock(Start));
 
         for (int i = 0; i < 2; i++)
             await Assert.That((await security.OpenConnectionAsync(OrmConnectionKind.ReadOnly, default)).Error!.Code)

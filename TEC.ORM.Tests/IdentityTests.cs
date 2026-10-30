@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TEC.Core.Security;
-using TEC.ORM.SqlServer.DependencyInjection;
+using TEC.ORM.EntityFrameworkCore.Auditing;
 
 namespace TEC.ORM.Tests;
 
@@ -42,9 +42,9 @@ public class IdentityTests
         var scopes = provider.GetRequiredService<IServiceScopeFactory>();
 
         Ambient.Value = "oid-ana";
-        var first = ServiceCollectionExtensions.SnapshotCurrentUser(scopes);
+        var first = OrmIdentity.SnapshotCurrentUser(scopes);
         Ambient.Value = "oid-bia";
-        var second = ServiceCollectionExtensions.SnapshotCurrentUser(scopes);
+        var second = OrmIdentity.SnapshotCurrentUser(scopes);
 
         await Assert.That(first!.Id).IsEqualTo("oid-ana");
         await Assert.That(first.IsAuthenticated).IsTrue();
@@ -57,6 +57,6 @@ public class IdentityTests
     {
         await using var provider = new ServiceCollection().BuildServiceProvider();
 
-        await Assert.That(ServiceCollectionExtensions.SnapshotCurrentUser(provider.GetRequiredService<IServiceScopeFactory>())).IsNull();
+        await Assert.That(OrmIdentity.SnapshotCurrentUser(provider.GetRequiredService<IServiceScopeFactory>())).IsNull();
     }
 }

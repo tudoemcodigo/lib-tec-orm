@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.ORM.Entities;
+using TEC.ORM.EntityFrameworkCore;
+using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Mapping;
 using TEC.ORM.Paging;
 using TEC.ORM.SqlServer;
-using TEC.ORM.SqlServer.Configuration;
-using TEC.ORM.SqlServer.Diagnostics;
-using TEC.ORM.SqlServer.SoftDelete;
 
 namespace TEC.ORM.Benchmarks;
 

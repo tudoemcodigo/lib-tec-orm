@@ -3,21 +3,38 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using TEC.Cqrs.Idempotency;
-using TEC.ORM.Common;
-using TEC.ORM.EntityFrameworkCore.Configuration;
 using TEC.ORM.EntityFrameworkCore.Dialects;
+using TEC.ORM.EntityFrameworkCore.SoftDelete;
 
 namespace TEC.ORM.EntityFrameworkCore.Idempotency;
 
 /// <summary>
-/// <see cref="IIdempotencyStore"/> baseado em EF Core, agnóstico de dialeto de banco de dados.
+/// <see cref="IIdempotencyStore"/> no banco da aplicação, na tabela mapeada por
+/// <see cref="IdempotencyModelBuilderExtensions.AddTecIdempotency"/>: compartilhado entre as instâncias da aplicação.
 /// </summary>
+/// <remarks>
+/// <para>A reserva é atômica no banco, com o SQL do dialeto (<see cref="ISqlDialect.FormatAtomicIdempotencyInsert(string, IdempotencyInsertColumns)"/>):
+/// <c>INSERT ... WHERE NOT EXISTS</c> com <c>UPDLOCK, HOLDLOCK</c> no SQL Server, <c>ON CONFLICT DO NOTHING</c> no PostgreSQL,
+/// <c>INSERT</c> simples no MySQL e <c>MERGE</c> no Oracle, sempre com os nomes de coluna do modelo. Só a violação de chave
+/// única ou primária conta como "já existe"; qualquer outro erro (coluna inexistente, permissão, sintaxe) sobe como exceção.
+/// Só uma requisição recebe <see cref="IdempotencyBeginStatus.Started"/>. Reserva expirada é assumida com <c>UPDATE</c>
+/// condicional ao <c>LockId</c> anterior.</para>
+/// <para>Usa só comandos diretos (<c>ExecuteSql</c>, <c>ExecuteUpdate</c>, <c>ExecuteDelete</c>) e leituras sem rastreamento:
+/// nunca chama <c>SaveChanges</c>, então não grava alterações pendentes da aplicação no mesmo contexto. Participa da transação
+/// corrente do contexto, se houver (o middleware HTTP roda fora de transação).</para>
+/// <para>Registro: <c>services.AddTecOrmIdempotency&lt;TContext&gt;()</c> (Scoped). O dialeto vem do registro do contexto
+/// (<c>AddTecOrm</c>, <c>AddTecOrmPostgreSql</c>, <c>AddTecOrmMySql</c>, <c>AddTecOrmOracle</c>).</para>
+/// </remarks>
+/// <typeparam name="TContext">Contexto com a tabela mapeada.</typeparam>
 public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly TimeProvider _timeProvider;
+    private readonly ISqlDialect? _dialect;
 
-    /// <summary>Cria uma nova instância do store de idempotência.</summary>
+    /// <summary>Cria o store com o dialeto do registro do contexto.</summary>
+    /// <param name="context">Contexto com a tabela mapeada.</param>
+    /// <param name="timeProvider">Relógio.</param>
     public EfIdempotencyStore(TContext context, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -26,9 +43,21 @@ public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TCont
         _timeProvider = timeProvider;
     }
 
+    /// <summary>Cria o store com um dialeto explícito (contexto montado sem o registro do TEC.ORM).</summary>
+    /// <param name="context">Contexto com a tabela mapeada.</param>
+    /// <param name="timeProvider">Relógio.</param>
+    /// <param name="dialect">Dialeto do banco do contexto.</param>
+    public EfIdempotencyStore(TContext context, TimeProvider timeProvider, ISqlDialect dialect)
+        : this(context, timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(dialect);
+        _dialect = dialect;
+    }
+
     private DbSet<IdempotencyRecord> Records => _context.Set<IdempotencyRecord>();
 
     /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">A tabela não está mapeada no modelo do contexto, ou o dialeto é desconhecido.</exception>
     public async ValueTask<IdempotencyBeginResult> TryBeginAsync(IdempotencyRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -44,6 +73,7 @@ public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TCont
             .Where(r => r.Scope == scope && r.Key == key)
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
+        // Removida entre o INSERT e a leitura (abandono ou limpeza): uma nova tentativa de reserva
         if (existing is null)
         {
             return await TryInsertAsync(request, lockId, now, cancellationToken).ConfigureAwait(false)
@@ -62,6 +92,7 @@ public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TCont
                 : IdempotencyBeginResult.InProgress;
         }
 
+        // Expirada: assume a chave, se ninguém a assumiu antes (condicional ao LockId lido)
         var previousLock = existing.LockId;
         var lockedUntil = now + request.LockTimeout;
         int retention = RetentionSeconds(request.Retention);
@@ -127,7 +158,12 @@ public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TCont
         return deleted == 1;
     }
 
-    /// <summary>Remove chaves de idempotência expiradas em lotes.</summary>
+    /// <summary>
+    /// Remove até <paramref name="batchSize"/> chaves expiradas (respostas fora da retenção e reservas vencidas).
+    /// </summary>
+    /// <param name="batchSize">Máximo de linhas por chamada.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Linhas removidas.</returns>
     public Task<int> PurgeExpiredAsync(int batchSize, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -140,64 +176,53 @@ public sealed class EfIdempotencyStore<TContext> : IIdempotencyStore where TCont
             .ExecuteDeleteAsync(cancellationToken);
     }
 
+    /// <summary>Reserva atômica: insere só se a chave não existir.</summary>
     private async Task<bool> TryInsertAsync(IdempotencyRequest request, Guid lockId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var entity = EnsureMapped();
+        var dialect = Dialect();
         var table = StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema());
-        string tableName = entity.GetTableName()!;
-        var dialect = _context.GetService<OrmOptions>()?.Dialect;
+        string target = entity.GetSchema() is { Length: > 0 } schema
+            ? dialect.DelimitIdentifier(schema) + "." + dialect.DelimitIdentifier(table.Name)
+            : dialect.DelimitIdentifier(table.Name);
+        string Column(string property) => dialect.DelimitIdentifier(entity.FindProperty(property)!.GetColumnName(table)!);
 
-        string target = dialect != null
-            ? (entity.GetSchema() != null ? $"{dialect.DelimitIdentifier(entity.GetSchema()!)}.{dialect.DelimitIdentifier(tableName)}" : dialect.DelimitIdentifier(tableName))
-            : Quote(entity.GetSchema()) is { } schema ? $"{schema}.{Quote(tableName)}" : Quote(tableName)!;
-
-        string Column(string property) => dialect != null
-            ? dialect.DelimitIdentifier(entity.FindProperty(property)!.GetColumnName(table)!)
-            : Quote(entity.FindProperty(property)!.GetColumnName(table))!;
+        string sql = dialect.FormatAtomicIdempotencyInsert(target, new IdempotencyInsertColumns(
+            Column(nameof(IdempotencyRecord.Scope)), Column(nameof(IdempotencyRecord.Key)), Column(nameof(IdempotencyRecord.RequestHash)),
+            Column(nameof(IdempotencyRecord.LockId)), Column(nameof(IdempotencyRecord.State)), Column(nameof(IdempotencyRecord.LockedUntil)),
+            Column(nameof(IdempotencyRecord.RetentionSeconds)), Column(nameof(IdempotencyRecord.ExpiresAt)),
+            Column(nameof(IdempotencyRecord.CreatedAt))));
 
         var lockedUntil = now + request.LockTimeout;
-        string sql = dialect != null
-            ? dialect.FormatAtomicIdempotencyInsert(target)
-            : $"INSERT INTO {target} ({Column(nameof(IdempotencyRecord.Scope))}, {Column(nameof(IdempotencyRecord.Key))}, " +
-              $"{Column(nameof(IdempotencyRecord.RequestHash))}, {Column(nameof(IdempotencyRecord.LockId))}, {Column(nameof(IdempotencyRecord.State))}, " +
-              $"{Column(nameof(IdempotencyRecord.LockedUntil))}, {Column(nameof(IdempotencyRecord.RetentionSeconds))}, " +
-              $"{Column(nameof(IdempotencyRecord.ExpiresAt))}, {Column(nameof(IdempotencyRecord.CreatedAt))}) " +
-              "SELECT {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8} " +
-              $"WHERE NOT EXISTS (SELECT 1 FROM {target} " +
-              $"WHERE {Column(nameof(IdempotencyRecord.Scope))} = {{0}} AND {Column(nameof(IdempotencyRecord.Key))} = {{1}})";
-
         try
         {
+#pragma warning disable EF1002 // identificadores vêm do modelo (delimitados pelo dialeto); valores sempre parametrizados
             int inserted = await _context.Database.ExecuteSqlRawAsync(sql,
                 [request.Key.Scope, request.Key.Key, request.RequestHash, lockId, IdempotencyRecord.InProgress, lockedUntil,
                     RetentionSeconds(request.Retention), lockedUntil, now], cancellationToken).ConfigureAwait(false);
+#pragma warning restore EF1002
             return inserted == 1;
         }
-        catch (DbUpdateException)
+        catch (Exception exception) when (dialect.ExceptionTranslator.IsUniqueViolation(exception))
         {
-            return false;
-        }
-        catch (Exception ex)
-        {
-            if (dialect?.ExceptionTranslator.Translate(ex).Error.Code == OrmErrors.ConflictCode)
-                return false;
-
-            if (ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("unique", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("violation", StringComparison.OrdinalIgnoreCase))
-                return false;
-
+            // Outra requisição reservou a mesma chave ao mesmo tempo (o MERGE e o INSERT simples podem colidir): "já existe"
             return false;
         }
     }
 
+    /// <summary>Dialeto explícito ou o do registro do contexto; sem nenhum, falha fechada (o SQL de outro banco não serve).</summary>
+    private ISqlDialect Dialect() =>
+        _dialect ?? _context.GetService<IDbContextOptions>().FindExtension<TecOrmOptionsExtension>()?.Dialect
+        ?? throw new InvalidOperationException(
+            $"O dialeto do banco de {typeof(TContext).Name} é desconhecido: registre o contexto com AddTecOrm (ou AddTecOrmPostgreSql, " +
+            "AddTecOrmMySql, AddTecOrmOracle) ou crie o store com o dialeto.");
+
     private IEntityType EnsureMapped() => _context.Model.FindEntityType(typeof(IdempotencyRecord))
         ?? throw new InvalidOperationException(
-            $"A tabela de idempotência não está mapeada em {typeof(TContext).Name}. Chame modelBuilder.AddTecIdempotency() no OnModelCreating e gere a migration.");
+            $"A tabela de idempotência não está mapeada em {typeof(TContext).Name}. Chame modelBuilder.AddTecIdempotency() no " +
+            "OnModelCreating e gere a migration.");
 
     private static int RetentionSeconds(TimeSpan retention) => (int)Math.Min(int.MaxValue, Math.Ceiling(retention.TotalSeconds));
-
-    private static string? Quote(string? identifier) => identifier is null ? null : "[" + identifier.Replace("]", "]]", StringComparison.Ordinal) + "]";
 
     private static IdempotentResponse ToResponse(IdempotencyRecord record)
     {
