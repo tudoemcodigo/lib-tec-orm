@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using TEC.Core.Domain;
 using TEC.ORM.Common;
 using TEC.ORM.EntityFrameworkCore;
 using TEC.ORM.EntityFrameworkCore.SoftDelete;

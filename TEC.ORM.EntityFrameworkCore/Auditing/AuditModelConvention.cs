@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using TEC.Core.Domain;
 using TEC.ORM.Auditing;
 using TEC.ORM.Entities;
 using TEC.ORM.EntityFrameworkCore.Dialects;

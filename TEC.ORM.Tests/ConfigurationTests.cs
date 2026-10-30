@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
+using TEC.Core.Domain;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Entities;
 using TEC.ORM.EntityFrameworkCore.Security;

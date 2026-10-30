@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TEC.Core.Common.Results;
+using TEC.Core.Domain;
 using TEC.Core.Exceptions;
 using TEC.ORM.Auditing;
 using TEC.ORM.Common;

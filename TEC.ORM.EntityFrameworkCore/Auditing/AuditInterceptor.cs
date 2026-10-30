@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TEC.Core.Common.Results;
+using TEC.Core.Domain;
 using TEC.Core.Security;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;

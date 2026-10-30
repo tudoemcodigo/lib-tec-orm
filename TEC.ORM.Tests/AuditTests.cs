@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TEC.Core.Domain;
 using TEC.Core.Security;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;

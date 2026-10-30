@@ -1,3 +1,4 @@
+using TEC.Core.Domain;
 namespace TEC.ORM.Entities;
 
 /// <summary>

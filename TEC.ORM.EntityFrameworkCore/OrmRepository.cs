@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using TEC.Core.Common.Results;
+using TEC.Core.Domain;
 using TEC.Core.Responses.Pagination;
 using TEC.ORM.Abstractions;
 using TEC.ORM.Common;
@@ -12,6 +13,7 @@ using TEC.ORM.Entities;
 using TEC.ORM.EntityFrameworkCore.Auditing;
 using TEC.ORM.EntityFrameworkCore.Configuration;
 using TEC.ORM.EntityFrameworkCore.Diagnostics;
+using TEC.ORM.EntityFrameworkCore.Internal;
 using TEC.ORM.EntityFrameworkCore.SoftDelete;
 using TEC.ORM.Mapping;
 using TEC.ORM.Paging;
@@ -296,7 +298,7 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// (<see cref="OrmOptions.EnableHistoricalAudit"/>); senão <c>null</c>.
     /// </summary>
     private HistoricalAuditInterceptor? HistoryFor() =>
-        HistoricalAuditInterceptor.IsAuditable(typeof(TEntity)) ? HistoricalAuditInterceptor.Find(Context) : null;
+        HistoricalAuditInterceptor.IsAuditable(Context.Model.FindEntityType(typeof(TEntity))) ? HistoricalAuditInterceptor.Find(Context) : null;
 
     /// <summary>
     /// Executa na transação corrente (do contexto ou ambiente) ou, sem nenhuma, numa transação própria confirmada no fim (e
@@ -611,8 +613,10 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
         !property.IsShadowProperty() && !property.IsConcurrencyToken &&
         property.Name is not (nameof(ISoftDelete.IsDeleted) or nameof(ISoftDelete.DeletedAt));
 
+    /// <summary>Ordenável por <see cref="SortableAttribute"/> na propriedade ou por <c>IsSortable()</c> no mapeamento.</summary>
     private static bool IsMarkedSortable(IProperty property) =>
-        property.PropertyInfo is { } info && Attribute.IsDefined(info, typeof(SortableAttribute), inherit: true);
+        property.FindAnnotation(OrmAnnotationNames.Sortable)?.Value is true ||
+        (property.PropertyInfo is { } info && Attribute.IsDefined(info, typeof(SortableAttribute), inherit: true));
 
     /// <summary>
     /// Anexa só a raiz como <c>Modified</c>, com os tipos <i>owned</i> dela (referência: <c>Modified</c>; item de coleção:

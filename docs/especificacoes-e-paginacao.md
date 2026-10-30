@@ -121,6 +121,8 @@ public sealed record ListOrders(int? Page, int? Size, string? Sort, bool? Desc);
 ### Sortable
 
 > `TEC.ORM.Paging` · `sealed class SortableAttribute : Attribute` · uso: propriedade da entidade · pacote `TEC.ORM`
+>
+> Sem atributo no domínio: `builder.Property(e => e.Nome).IsSortable()` no mapeamento (`TEC.ORM.EntityFrameworkCore.Auditing`) tem o mesmo efeito.
 
 | Situação da entidade | `SortBy` aceito |
 |---|---|

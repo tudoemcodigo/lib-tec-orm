@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata;
 using TEC.Core.Common.Results;
+using TEC.Core.Domain;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;
 

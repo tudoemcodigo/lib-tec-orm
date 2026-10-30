@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using TEC.Core.Common.Results;
+using TEC.Core.Domain;
 using TEC.Core.Responses.Pagination;
 using TEC.ORM.Entities;
 using TEC.ORM.Mapping;
