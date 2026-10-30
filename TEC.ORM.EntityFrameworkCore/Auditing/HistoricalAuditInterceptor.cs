@@ -10,9 +10,11 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
+using TEC.Core.Domain;
 using TEC.ORM.Auditing;
 using TEC.ORM.Entities;
 using TEC.ORM.EntityFrameworkCore.Configuration;
+using TEC.ORM.EntityFrameworkCore.Internal;
 
 namespace TEC.ORM.EntityFrameworkCore.Auditing;
 
@@ -48,7 +50,7 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
     /// <summary>Ação da trilha: exclusão lógica.</summary>
     internal const string SoftDeletedAction = "SoftDeleted";
 
-    private static readonly ConcurrentDictionary<Type, AuditedType> Types = new();
+    private static readonly ConditionalWeakTable<IReadOnlyEntityType, AuditedType> Types = new();
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -135,8 +137,10 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
         context.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()?.Interceptors?
             .OfType<HistoricalAuditInterceptor>().FirstOrDefault();
 
-    /// <summary>A entidade tem <see cref="AuditableAttribute"/> (na classe ou numa base).</summary>
-    internal static bool IsAuditable(Type type) => Describe(type).IsAuditable;
+    /// <summary>
+    /// A entidade é auditada: <see cref="AuditableAttribute"/> na classe (ou numa base) ou <c>IsAuditable()</c> no mapeamento.
+    /// </summary>
+    internal static bool IsAuditable(IReadOnlyEntityType? entityType) => entityType is not null && Describe(entityType).IsAuditable;
 
     /// <summary>
     /// Grava a trilha da exclusão física (<c>HardDeleteAsync</c>, que não passa pelo rastreador): um registro <c>Deleted</c> por
@@ -149,7 +153,7 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
             return;
         var actor = ResolveActor(context);
         var now = _timeProvider.GetUtcNow();
-        var described = Describe(entityType.ClrType);
+        var described = Describe(entityType);
         var records = new List<OrmAuditRecord>(deleted.Count);
         foreach (var entity in deleted)
         {
@@ -179,7 +183,7 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
         var entries = context.ChangeTracker.Entries()
             .Where(e => e.Entity is not OrmAuditRecord
                         && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
-                        && Describe(e.Metadata.ClrType).IsAuditable)
+                        && Describe(e.Metadata).IsAuditable)
             .ToList();
         if (entries.Count == 0)
             return;
@@ -272,7 +276,7 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
 
     private OrmAuditRecord? CreateRecord(DbContext context, EntityEntry entry, EntityState state, OrmAuditActorContext actor, DateTimeOffset now)
     {
-        var described = Describe(entry.Metadata.ClrType);
+        var described = Describe(entry.Metadata);
         string action = state switch
         {
             EntityState.Added => CreatedAction,
@@ -396,17 +400,30 @@ public sealed class HistoricalAuditInterceptor : SaveChangesInterceptor
             ? text
             : string.Concat(text.AsSpan(0, _maxValueLength), "…(+", (text.Length - _maxValueLength).ToString(CultureInfo.InvariantCulture), ")");
 
-    private static AuditedType Describe(Type type) => Types.GetOrAdd(type, static t => new AuditedType(t));
+    private static AuditedType Describe(IReadOnlyEntityType entityType) => Types.GetValue(entityType, static t => new AuditedType(t));
 
-    /// <summary>Atributos de auditoria de um tipo, lidos uma vez (antes: reflexão por propriedade a cada salvamento).</summary>
+    /// <summary>
+    /// Auditoria de um tipo de entidade do modelo, lida uma vez: atributos da classe (<see cref="AuditableAttribute"/>,
+    /// <see cref="AuditIgnoreAttribute"/>, <see cref="SensitiveDataAttribute"/>) somados às anotações da Fluent API
+    /// (<c>IsAuditable()</c>, <c>IsAuditIgnored()</c>, <c>IsSensitiveData()</c>), que deixam o domínio sem referência ao ORM.
+    /// </summary>
     private sealed class AuditedType
     {
         private readonly HashSet<string> _ignored = new(StringComparer.Ordinal);
         private readonly HashSet<string> _sensitive = new(StringComparer.Ordinal);
 
-        public AuditedType(Type type)
+        public AuditedType(IReadOnlyEntityType entityType)
         {
-            IsAuditable = type.GetCustomAttribute<AuditableAttribute>(inherit: true) is not null;
+            var type = entityType.ClrType;
+            IsAuditable = type.GetCustomAttribute<AuditableAttribute>(inherit: true) is not null
+                          || entityType.FindAnnotation(OrmAnnotationNames.Auditable)?.Value is true;
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.FindAnnotation(OrmAnnotationNames.AuditIgnore)?.Value is true)
+                    _ignored.Add(property.Name);
+                if (property.FindAnnotation(OrmAnnotationNames.SensitiveData)?.Value is true)
+                    _sensitive.Add(property.Name);
+            }
             // Pela propriedade mais derivada (uma propriedade "new" esconde a da base sem gerar AmbiguousMatchException)
             foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                          .GroupBy(p => p.Name, StringComparer.Ordinal)

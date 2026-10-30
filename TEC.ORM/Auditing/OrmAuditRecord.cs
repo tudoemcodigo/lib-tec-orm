@@ -1,3 +1,4 @@
+using TEC.Core.Domain;
 using TEC.ORM.Entities;
 
 namespace TEC.ORM.Auditing;

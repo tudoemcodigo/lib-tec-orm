@@ -421,7 +421,7 @@ internal sealed class MappingEmitter
         code.AppendLine($"{i}if ({collection} != null)");
         code.AppendLine($"{i}{{");
         code.AppendLine($"{ii}var {existing} = new global::System.Collections.Generic.Dictionary<{key}, {element}>();");
-        code.AppendLine($"{ii}foreach (var __current in {collection}) if (__current != null) {existing}[((global::TEC.ORM.Entities.IEntity<{key}>)__current).Id] = __current;");
+        code.AppendLine($"{ii}foreach (var __current in {collection}) if (__current != null) {existing}[((global::TEC.Core.Domain.IEntity<{key}>)__current).Id] = __current;");
         code.AppendLine($"{ii}var {seen} = new global::System.Collections.Generic.HashSet<{key}>();");
         code.AppendLine($"{ii}foreach (var __item in {dtoMember})");
         code.AppendLine($"{ii}{{");

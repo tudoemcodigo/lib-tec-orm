@@ -137,7 +137,7 @@ internal static class TestOrm
 
     public static OrmRepository<TEntity, TKey> Orm<TEntity, TKey>(DbContext context, OrmOptions? options = null,
         ILogger<OrmOperationRunner>? logger = null)
-        where TEntity : class, ORM.Entities.IEntity<TKey>, ORM.Entities.ISoftDelete
+        where TEntity : class, Core.Domain.IEntity<TKey>, Core.Domain.ISoftDelete
         where TKey : notnull, IEquatable<TKey>
     {
         options ??= Options();

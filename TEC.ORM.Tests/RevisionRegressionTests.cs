@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using TEC.Core.Domain;
 using TEC.Core.Security;
 using TEC.ORM.Common;
 using TEC.ORM.Entities;

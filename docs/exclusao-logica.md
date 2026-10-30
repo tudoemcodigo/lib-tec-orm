@@ -56,12 +56,13 @@ sequenceDiagram
 
 ### Entidades: IEntity, ISoftDelete e Entity
 
-> `TEC.ORM.Entities` · pacote `TEC.ORM`
+> Contratos em `TEC.Core.Domain` (pacote `TEC.Core`); bases `Entity<TKey>`/`AuditableEntity<TKey>` em `TEC.ORM.Entities` (pacote `TEC.ORM`)
 
 | Tipo | Membros | Observação |
 |---|---|---|
-| `IEntity<TKey>` | `TKey Id { get; }` | `TKey : notnull, IEquatable<TKey>` (`int`, `long`, `Guid`, `string`...) |
-| `ISoftDelete` | `bool IsDeleted { get; }` · `DateTimeOffset? DeletedAt { get; }` | Só `get`: gravados pela implementação (setter privado ou campo) |
+| `IEntity<TKey>` (`TEC.Core.Domain`) | `TKey Id { get; }` | O repositório exige `TKey : notnull, IEquatable<TKey>` (`int`, `long`, `Guid`, `string`...) |
+| `ISoftDelete` (`TEC.Core.Domain`) | `bool IsDeleted { get; }` · `DateTimeOffset? DeletedAt { get; }` | Só `get`: gravados pela implementação (setter privado ou campo) |
+| `AuditableAggregateRoot<TId>` / `AuditableDomainEntity<TId>` (`TEC.Core.Domain`) | `AggregateRoot<TId>`/`DomainEntity<TId>` + `ISoftDelete` + `IAuditable` | Domínio rico sem referência ao TEC.ORM (Clean Architecture): configure auditoria, dado sensível e ordenação pela [Fluent API](auditoria.md#fluent-api-domínio-sem-referência-ao-orm) |
 | `Entity<TKey>` (`abstract`) | `Id { get; set; }` · `IsDeleted { get; private set; }` · `DeletedAt { get; private set; }` | Base opcional |
 | `AuditableEntity<TKey>` (`abstract`) | `Entity<TKey>` + `IAuditable` | Ver [🕵️ Auditoria](auditoria.md) |
 

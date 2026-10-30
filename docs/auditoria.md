@@ -62,7 +62,7 @@ sequenceDiagram
 
 ### IAuditable e AuditableEntity
 
-> `TEC.ORM.Entities` · `interface IAuditable` / `abstract class AuditableEntity<TKey>` · pacote `TEC.ORM`
+> `TEC.Core.Domain` · `interface IAuditable` (pacote `TEC.Core`) / `TEC.ORM.Entities` · `abstract class AuditableEntity<TKey>` (pacote `TEC.ORM`)
 
 | Membro | Tipo | Descrição |
 |---|---|---|
@@ -75,6 +75,7 @@ sequenceDiagram
 `AuditableEntity<TKey>` = `Entity<TKey>` + `IAuditable`, todos com `set` privado.
 
 ```csharp
+using TEC.Core.Domain;
 using TEC.ORM.Entities;
 
 public sealed class Order : AuditableEntity<Guid>
@@ -176,6 +177,35 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
     modelBuilder.AddTecOrmHistoricalAudit(); // Mapeia OrmAuditRecords com índices
+}
+```
+
+### Fluent API (domínio sem referência ao ORM)
+
+> `TEC.ORM.EntityFrameworkCore.Auditing` · `OrmMetadataBuilderExtensions` · pacote `TEC.ORM.EntityFrameworkCore`
+
+Para manter o projeto de domínio dependente só do `TEC.Core` (entidades em `AuditableAggregateRoot<TId>` ou
+`AuditableDomainEntity<TId>`), declare no `IEntityTypeConfiguration` da infraestrutura o que os atributos declarariam. Atributo
+e Fluent API se somam: basta um dos dois.
+
+| Fluent API | Equivale a |
+|---|---|
+| `EntityTypeBuilder<T>.IsAuditable()` / `OwnedNavigationBuilder<,>.IsAuditable()` | `[Auditable]` na classe |
+| `PropertyBuilder<T>.IsSensitiveData()` | `[SensitiveData]` |
+| `PropertyBuilder<T>.IsAuditIgnored()` | `[AuditIgnore]` |
+| `PropertyBuilder<T>.IsSortable()` | `[Sortable]` ([paginação](especificacoes-e-paginacao.md#sortable)) |
+
+```csharp
+using TEC.ORM.EntityFrameworkCore.Auditing;
+
+internal sealed class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
+{
+    public void Configure(EntityTypeBuilder<Cliente> builder)
+    {
+        builder.IsAuditable();
+        builder.Property(c => c.Nome).IsSortable();
+        builder.Property(c => c.Documento).IsSensitiveData();
+    }
 }
 ```
 

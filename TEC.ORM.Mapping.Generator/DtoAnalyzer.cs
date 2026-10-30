@@ -35,9 +35,9 @@ internal sealed class DtoAnalyzer
         _compilation = compilation;
         _converterInterface = compilation.GetTypeByMetadataName("TEC.ORM.Mapping.IMapConverter`2");
         _bidirectionalInterface = compilation.GetTypeByMetadataName("TEC.ORM.Mapping.IBidirectionalMapConverter`2");
-        _entityInterface = compilation.GetTypeByMetadataName("TEC.ORM.Entities.IEntity`1");
-        _softDeleteInterface = compilation.GetTypeByMetadataName("TEC.ORM.Entities.ISoftDelete");
-        _auditableInterface = compilation.GetTypeByMetadataName("TEC.ORM.Entities.IAuditable");
+        _entityInterface = compilation.GetTypeByMetadataName("TEC.Core.Domain.IEntity`1");
+        _softDeleteInterface = compilation.GetTypeByMetadataName("TEC.Core.Domain.ISoftDelete");
+        _auditableInterface = compilation.GetTypeByMetadataName("TEC.Core.Domain.IAuditable");
         _list = compilation.GetTypeByMetadataName("System.Collections.Generic.List`1");
     }
 

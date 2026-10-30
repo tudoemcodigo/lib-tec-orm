@@ -47,7 +47,7 @@ public sealed class InMemoryOrm
     }
 
     public OrmRepository<TEntity, TKey> Orm<TEntity, TKey>(DbContext context)
-        where TEntity : class, ORM.Entities.IEntity<TKey>, ORM.Entities.ISoftDelete
+        where TEntity : class, Core.Domain.IEntity<TKey>, Core.Domain.ISoftDelete
         where TKey : notnull, IEquatable<TKey> =>
         new(context, Observability, Options);
 }

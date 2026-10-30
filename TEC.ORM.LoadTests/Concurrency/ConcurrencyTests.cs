@@ -9,6 +9,7 @@ using TEC.ORM.LoadTests.Infrastructure;
 using TEC.ORM.Paging;
 using TEC.ORM.Queries;
 using TEC.ORM.Specifications;
+using TEC.ORM.SqlServer;
 using TEC.ORM.SqlServer.Internal;
 using TEC.Vault.Abstractions;
 using TEC.Vault.DependencyInjection;
@@ -131,7 +132,7 @@ public class ConcurrencyTests
             })
             .EnableSecretCache(TimeSpan.FromMinutes(5)));
         await using var provider = services.BuildServiceProvider();
-        var options = new OrmOptions { ConnectionSecretName = "carga-sql", ApplicationName = "Carga" };
+        var options = new OrmOptions { ConnectionSecretName = "carga-sql", ApplicationName = "Carga", Dialect = new SqlServerDialect() };
         var security = new OrmConnectionSecurity(provider.GetRequiredService<ISecretReader>(), options, NullLogger<OrmConnectionSecurity>.Instance);
 
         var reference = (await security.BuildConnectionStringAsync(OrmConnectionKind.ReadWrite, CancellationToken.None)).Value.Reveal();
