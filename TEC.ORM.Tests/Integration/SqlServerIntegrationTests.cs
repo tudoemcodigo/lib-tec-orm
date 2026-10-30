@@ -376,7 +376,7 @@ public class SqlServerIntegrationTests
         await Assert.That(report.Status).IsEqualTo(HealthStatus.Unhealthy);
         await Assert.That(report.Entries["tec-orm"].Description).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
         await Assert.That(logs.AllText).DoesNotContain(wrongPassword);
-        await Assert.That(logs.AllText).Contains("SQL 18456");
+        await Assert.That(logs.AllText).Contains("erro do banco 18456");
     }
 
     [Test]

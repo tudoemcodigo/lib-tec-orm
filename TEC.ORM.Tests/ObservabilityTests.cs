@@ -265,7 +265,10 @@ public class ObservabilityTests
         string formatted = observability.FormatIdentifier("123.456.789-09");
 
         await Assert.That(formatted).Contains("hmac:");
-        await Assert.That(formatted).DoesNotContain("123");
+        // O hash é hexadecimal e pode conter "123" por acaso: confere os trechos do valor, com "." e "-"
+        await Assert.That(formatted).DoesNotContain("123.456");
+        await Assert.That(formatted).DoesNotContain("789-09");
+        await Assert.That(formatted).DoesNotContain("12345678909");
         await Assert.That(observability.FormatIdentifier("123.456.789-09")).IsEqualTo(formatted);   // correlacionável no processo
     }
 

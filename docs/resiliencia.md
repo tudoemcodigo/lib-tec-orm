@@ -60,7 +60,7 @@ Cada nova tentativa gera:
 
 | Sinal | Conteúdo |
 |---|---|
-| Log **3008** (`Warning`) | `ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (SQL {SqlErrorNumber}); nova tentativa {Retry} de {MaxRetries}.` |
+| Log **3008** (`Warning`) | `ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}.` |
 | Tag `orm.retries` | No `Activity` da operação, só quando houve nova tentativa |
 | Métrica | Uma medição por operação (a duração inclui as tentativas) |
 
