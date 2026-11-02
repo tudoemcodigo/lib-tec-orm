@@ -23,7 +23,7 @@ public sealed class ProtectedConnectionString
 
     /// <summary>
     /// A política aceitou uma conexão sem validação completa do servidor (ex.: <c>TrustServerCertificate=True</c>,
-    /// <c>SslMode=Require</c>, <c>PROTOCOL=TCP</c>), liberada por <c>AllowTrustServerCertificate</c>: gera o aviso 3103.
+    /// <c>SslMode=Require</c>, <c>PROTOCOL=TCP</c>), liberada por <c>AllowTrustServerCertificate</c>: gera o aviso 8103.
     /// </summary>
     internal bool RelaxedTransportSecurity { get; init; }
 

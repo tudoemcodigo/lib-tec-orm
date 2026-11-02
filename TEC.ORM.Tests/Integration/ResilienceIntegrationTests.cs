@@ -205,7 +205,7 @@ public class ResilienceIntegrationTests
 
         await Assert.That(count.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
         await Assert.That(query.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
-        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3005)).IsFalse();
+        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8005)).IsFalse();
         await Assert.That(logs.AllText).DoesNotContain(SqlServerFixture.Password);
     }
 

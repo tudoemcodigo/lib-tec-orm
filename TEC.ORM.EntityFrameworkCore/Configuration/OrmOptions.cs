@@ -61,7 +61,7 @@ public sealed class OrmOptions
     /// Aceita, no segredo, conexão sem validação completa do servidor: <c>TrustServerCertificate=True</c> no SQL Server,
     /// <c>SslMode=Require</c> no PostgreSQL, <c>SslMode=Preferred</c>/<c>Required</c> no MySQL e transporte sem TCPS (ou
     /// <c>SSL_SERVER_DN_MATCH</c> desligado) no Oracle. Padrão <c>false</c>: habilite só em desenvolvimento local (ex.: banco no
-    /// Docker com certificado autoassinado). Gera o aviso 3103 uma vez por tipo de conexão.
+    /// Docker com certificado autoassinado). Gera o aviso 8103 uma vez por tipo de conexão.
     /// </summary>
     public bool AllowTrustServerCertificate { get; set; }
 

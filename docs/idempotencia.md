@@ -153,7 +153,7 @@ Retenção, prazo da reserva e limites de tamanho são do `IdempotencyOptions` d
 | `InvalidOperationException` ao criar o store | Contexto sem dialeto (não registrado por `AddTecOrm*`) | Registre o contexto pelo provedor do banco ou passe o `ISqlDialect` no construtor |
 | `InvalidOperationException` "Já existe um IIdempotencyStore registrado" | Dois stores (ex.: também `AddInMemoryIdempotencyStore`) | Registre um só |
 | `ArgumentOutOfRangeException` | Opção fora dos limites | Corrija a opção |
-| Log 3201 (Warning) | Falha na limpeza (banco indisponível) | Nada: tenta de novo no próximo ciclo |
+| Log 8201 (Warning) | Falha na limpeza (banco indisponível) | Nada: tenta de novo no próximo ciclo |
 
 ## 🛡️ Segurança
 

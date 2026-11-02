@@ -36,13 +36,13 @@ sequenceDiagram
     Run->>Op: executa
     alt falha transitória numa leitura repetível
         Op-->>Run: exceção
-        Run->>Log: 3008 · espera e repete
+        Run->>Log: 8008 · espera e repete
     end
     Op-->>Run: Result ou exceção (traduzida para OrmErrors)
-    Run->>OT: orm.operation.duration · orm.success · error.type · orm.retries
-    Run->>Log: evento 3000–3007
+    Run->>OT: tec.orm.operation.duration · orm.success · error.type · orm.retries
+    Run->>Log: evento 8000–8007
     Run-->>Repo: Result
-    Note over Run: Cancelamento: métrica e trace com canceled, log 3006 e relança
+    Note over Run: Cancelamento: métrica e trace com canceled, log 8006 e relança
 ```
 
 O TEC.ORM **não depende** do TEC.Observability: emite `ActivitySource` e `Meter` da BCL com o nome `TEC.ORM`, que qualquer
@@ -94,9 +94,9 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 | `Target` | `string` | Nome da entidade ou `SqlQuery.Name` |
 | `IsWrite` | `bool` | Escrita: log de auditoria em `Information` |
 | `Identifier` | `object?` | Só no log, conforme `IdentifierLogMode`; pode ser definido durante a operação |
-| `IsHardDelete` | `bool` (`init`) | Sucesso no log 3007 (`Warning`) em vez do 3001 |
-| `Actor` | `string?` | Autor (id do `ICurrentUser`) no log 3007, conforme `IdentifierLogMode`; `-` sem identidade |
-| `AffectedRows` | `long?` | Linhas removidas no log 3007; `-` se não informado |
+| `IsHardDelete` | `bool` (`init`) | Sucesso no log 8007 (`Warning`) em vez do 8001 |
+| `Actor` | `string?` | Autor (id do `ICurrentUser`) no log 8007, conforme `IdentifierLogMode`; `-` sem identidade |
+| `AffectedRows` | `long?` | Linhas removidas no log 8007; `-` se não informado |
 | `IsRetryable` | `bool` (`init`) | Pode ser repetida em falha transitória (só leitura fora de transação; ignorado em escritas) |
 
 ### OrmDiagnostics, traces e métricas
@@ -104,54 +104,67 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 | Constante (`OrmDiagnostics`) | Valor |
 |---|---|
 | `ActivitySourceName` / `MeterName` | `"TEC.ORM"` |
-| `OperationDurationName` | `"orm.operation.duration"` |
+| `OperationDurationName` | `"tec.orm.operation.duration"` |
+| `LegacyOperationDurationName` | `"orm.operation.duration"` (**obsoleta**, ver [Nomes antigos](#nomes-antigos-dos-instrumentos)) |
 | `EntityFrameworkProvider` / `DapperProvider` | `"entityframework"` / `"dapper"` |
 | `UnknownDbSystem` | `"other_sql"` (sem dialeto; com dialeto, `db.system.name` é o `ISqlDialect.DbSystemName`: `microsoft.sql_server`, `postgresql`, `mysql` ou `oracle.db`) |
 | `CanceledErrorType` | `"canceled"` |
-| `CircuitStateChangesName` | `"orm.circuit.state_changes"` |
+| `CircuitStateChangesName` | `"tec.orm.circuit.state_changes"` |
+| `LegacyCircuitStateChangesName` | `"orm.circuit.state_changes"` (**obsoleta**) |
 
 | Sinal | Nome | Atributos |
 |---|---|---|
 | Trace | `Activity` `Client` `"{operação} {alvo}"` (ex.: `create Customer`, `query reports.sales`) | `db.system.name`, `orm.provider`, `orm.operation`, `orm.target`, `orm.success`, `orm.retries` (só com nova tentativa) e, em falha, `error.type` + status `Error` |
-| Métrica | `orm.operation.duration` (histograma, `s`) | `db.system.name`, `orm.provider`, `orm.operation`, `orm.target` e, em falha, `error.type` (código de `OrmErrors` ou `canceled`) |
-| Métrica | `orm.circuit.state_changes` (contador) | `orm.connection` (`escrita`/`leitura`), `orm.circuit.state` (`open`, `half_open`, `closed`) |
+| Métrica | `tec.orm.operation.duration` (histograma, `s`) | `db.system.name`, `orm.provider`, `orm.operation`, `orm.target` e, em falha, `error.type` (código de `OrmErrors` ou `canceled`) |
+| Métrica | `tec.orm.circuit.state_changes` (contador) | `orm.connection` (`escrita`/`leitura`), `orm.circuit.state` (`open`, `half_open`, `closed`) |
 
 A contagem por operação e resultado vem do próprio histograma (ex.: taxa de erro por entidade = contagem com
 `error.type` ÷ total, agrupado por `orm.target`).
 
+#### Nomes antigos dos instrumentos
+
+Os instrumentos eram `orm.operation.duration` e `orm.circuit.state_changes`. Pela convenção da Doutrina (CMP-OBS-06) passaram a
+`tec.orm.*`. Por **uma versão MINOR** os dois nomes emitem a mesma medição, com as mesmas tags; os nomes `orm.*` estão
+**obsoletos** (as constantes `Legacy*Name` têm `[Obsolete]`) e saem na MINOR seguinte. Migre painéis e alertas para os nomes
+novos. Nome do `Meter`/`ActivitySource` (`TEC.ORM`) e nomes das tags (`orm.provider`, `orm.operation`...) não mudam. Se a
+coleta somar os dois nomes, a contagem dobra: filtre por um deles.
+
 ### Eventos de log
+
+Faixa de EventId do componente: **8000-8999** (tabela única de faixas da Doutrina, CMP-OBS-07). Antes ficavam em 3000-3201; o
+sufixo foi mantido (3001 virou 8001). Filtros e alertas por EventId 3xxx devem passar a 8xxx.
 
 Mensagens geradas com `LoggerMessage`. Categorias (as mesmas nos quatro provedores):
 `TEC.ORM.EntityFrameworkCore.Diagnostics.OrmOperationRunner`, `TEC.ORM.EntityFrameworkCore.Security.OrmConnectionSecurity`
 (inclusive o circuito das conexões abertas por ela), `TEC.ORM.EntityFrameworkCore.Security.SecretConnectionInterceptor`
 (circuito da conexão do EF Core), `TEC.ORM.EntityFrameworkCore.HealthChecks.OrmHealthCheck` e
-`TEC.ORM.EntityFrameworkCore.Idempotency.IdempotencyCleanupService` (3200–3201).
+`TEC.ORM.EntityFrameworkCore.Idempotency.IdempotencyCleanupService` (8200–8201).
 
 | Evento | Nível | Mensagem (modelo) |
 |---|---|---|
-| 3000 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) concluída em {ElapsedMilliseconds} ms. |
-| 3001 | Information | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) concluída em {ElapsedMilliseconds} ms. |
-| 3002 | Information | ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
-| 3003 | Warning | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
-| 3004 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, erro do banco {DatabaseErrorCode}) em {ElapsedMilliseconds} ms. |
-| 3005 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}. *(com a exceção; as de conversão de valor, sem a mensagem)* |
-| 3006 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) cancelada após {ElapsedMilliseconds} ms. |
-| 3007 | Warning | Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) por {Actor} removeu {Rows} linha(s) de fato do banco (irreversível) em {ElapsedMilliseconds} ms. |
-| 3008 | Warning | ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}. |
-| 3100 | Error | ORM: segredo da conexão {Kind} indisponível no cofre: {ErrorCode}. |
-| 3101 | Error | ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}. |
-| 3102 | Error | ORM: falha ao abrir a conexão {Kind} ({ExceptionType}, erro do banco {DatabaseErrorCode}). |
-| 3103 | Warning | ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento). |
-| 3104 | Warning | Health check do ORM falhou: {ErrorCode}. |
-| 3105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
-| 3106 | Information | ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura. |
-| 3107 | Information | ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões. |
-| 3108 | Debug | ORM: abertura da conexão {Kind} recusada com o circuito aberto. |
-| 3200 | Debug | ORM: limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}. |
-| 3201 | Warning | ORM: falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo. *(com a exceção)* |
+| 8000 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) concluída em {ElapsedMilliseconds} ms. |
+| 8001 | Information | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) concluída em {ElapsedMilliseconds} ms. |
+| 8002 | Information | ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
+| 8003 | Warning | Auditoria ORM {Provider}: {Operation} de {Target} ({Identifier}) retornou {ErrorCode} em {ElapsedMilliseconds} ms. |
+| 8004 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) falhou por infraestrutura: {ErrorCode} ({ExceptionType}, erro do banco {DatabaseErrorCode}) em {ElapsedMilliseconds} ms. |
+| 8005 | Error | ORM {Provider}: {Operation} de {Target} ({Identifier}) lançou {ExceptionType} inesperada; convertida em {ErrorCode}. *(com a exceção; as de conversão de valor, sem a mensagem)* |
+| 8006 | Debug | ORM {Provider}: {Operation} de {Target} ({Identifier}) cancelada após {ElapsedMilliseconds} ms. |
+| 8007 | Warning | Auditoria ORM {Provider}: EXCLUSÃO FÍSICA - {Operation} de {Target} ({Identifier}) por {Actor} removeu {Rows} linha(s) de fato do banco (irreversível) em {ElapsedMilliseconds} ms. |
+| 8008 | Warning | ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}. |
+| 8100 | Error | ORM: segredo da conexão {Kind} indisponível no cofre: {ErrorCode}. |
+| 8101 | Error | ORM: segredo da conexão {Kind} recusado pela política de segurança: {Reason}. |
+| 8102 | Error | ORM: falha ao abrir a conexão {Kind} ({ExceptionType}, erro do banco {DatabaseErrorCode}). |
+| 8103 | Warning | ORM: TrustServerCertificate habilitado na conexão {Kind}: o certificado do servidor não é validado (use só em desenvolvimento). |
+| 8104 | Warning | Health check do ORM falhou: {ErrorCode}. |
+| 8105 | Warning | ORM: circuito da conexão {Kind} aberto após falhas repetidas ao abrir conexões; aberturas recusadas por {BreakSeconds} s. |
+| 8106 | Information | ORM: circuito da conexão {Kind} meio-aberto; testando o banco com uma abertura. |
+| 8107 | Information | ORM: circuito da conexão {Kind} fechado; o banco voltou a aceitar conexões. |
+| 8108 | Debug | ORM: abertura da conexão {Kind} recusada com o circuito aberto. |
+| 8200 | Debug | ORM: limpeza da idempotência removeu {Count} chave(s) expirada(s) de {Context}. |
+| 8201 | Warning | ORM: falha na limpeza da idempotência de {Context}; nova tentativa no próximo ciclo. *(com a exceção)* |
 
-`{Kind}` é `escrita` ou `leitura`. Falhas esperadas de leitura saem em 3002; de escrita, em 3003; de infraestrutura
-(`ExternalService`), em 3004. `{Identifier}` segue o `IdentifierLogMode` ([⚙️ Opções](opcoes.md#identifierlogmode)).
+`{Kind}` é `escrita` ou `leitura`. Falhas esperadas de leitura saem em 8002; de escrita, em 8003; de infraestrutura
+(`ExternalService`), em 8004. `{Identifier}` segue o `IdentifierLogMode` ([⚙️ Opções](opcoes.md#identifierlogmode)).
 
 ---
 
@@ -173,8 +186,8 @@ Mensagens geradas com `LoggerMessage`. Categorias (as mesmas nos quatro provedor
 | Código / situação | Onde aparece |
 |---|---|
 | Qualquer código de `OrmErrors` | `error.type` (métrica e trace) e `{ErrorCode}` (log) |
-| `canceled` | `error.type` de operação cancelada (log 3006) |
-| Exceção inesperada | `ORM_FALHA` + log 3005 com a pilha (ex.: navegação inexistente no `Include`); falha de conversão de valor (`FormatException`, `InvalidCastException`, `OverflowException`, `DataException` do Dapper) vai sem a mensagem, que traria o valor da coluna |
+| `canceled` | `error.type` de operação cancelada (log 8006) |
+| Exceção inesperada | `ORM_FALHA` + log 8005 com a pilha (ex.: navegação inexistente no `Include`); falha de conversão de valor (`FormatException`, `InvalidCastException`, `OverflowException`, `DataException` do Dapper) vai sem a mensagem, que traria o valor da coluna |
 
 ---
 
@@ -198,7 +211,7 @@ Mensagens geradas com `LoggerMessage`. Categorias (as mesmas nos quatro provedor
 <details>
 <summary>Vale alertar em algum evento?</summary>
 
-Sim: **3007** (exclusão física), **3004** (infraestrutura) e o aumento de **3008** (novas tentativas, sinal de rede ou
+Sim: **8007** (exclusão física), **8004** (infraestrutura) e o aumento de **8008** (novas tentativas, sinal de rede ou
 failover instável).
 
 </details>

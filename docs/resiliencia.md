@@ -32,7 +32,7 @@ flowchart TD
     C -- não --> F
     C -- sim --> D{"Tentativas < TransientRetryCount?"}
     D -- não --> F
-    D -- sim --> E["Log 3008 · espera exponencial + variação"]
+    D -- sim --> E["Log 8008 · espera exponencial + variação"]
     E -->|"cancelado na espera"| X["OperationCanceledException"]
     E --> R["Repete a operação"]
     R --> A
@@ -60,11 +60,11 @@ Cada nova tentativa gera:
 
 | Sinal | Conteúdo |
 |---|---|
-| Log **3008** (`Warning`) | `ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}.` |
+| Log **8008** (`Warning`) | `ORM {Provider}: {Operation} de {Target} teve falha transitória {ErrorCode} (erro do banco {DatabaseErrorCode}); nova tentativa {Retry} de {MaxRetries}.` |
 | Tag `orm.retries` | No `Activity` da operação, só quando houve nova tentativa |
 | Métrica | Uma medição por operação (a duração inclui as tentativas) |
 
-O cancelamento durante a espera encerra a operação como cancelada (`error.type = canceled`, log 3006) e relança
+O cancelamento durante a espera encerra a operação como cancelada (`error.type = canceled`, log 8006) e relança
 `OperationCanceledException`. Quem implementa um repositório próprio marca leituras com
 `new OrmOperation(...) { IsRetryable = true }` (ignorado em escritas).
 
@@ -81,7 +81,7 @@ Erros do SQL Server reconhecidos como transitórios (no `SqlException` ou em qua
 
 > [!NOTE]
 > Esgotadas as tentativas, os erros de conexão e os transitórios do Azure SQL viram **`ORM_CONEXAO_INDISPONIVEL`**
-> (falha de infraestrutura, HTTP 502, log 3004 sem a mensagem do banco), e não `ORM_FALHA`. O deadlock vira
+> (falha de infraestrutura, HTTP 502, log 8004 sem a mensagem do banco), e não `ORM_FALHA`. O deadlock vira
 > `ORM_CONCORRENCIA`.
 
 ### Pool de conexões esgotado
@@ -94,8 +94,8 @@ praticamente todo o `Connect Timeout`** (≥ 90%), que é exatamente o que o esg
 - EF Core: o interceptor de conexão marca a falha de abertura (usa a duração informada pelo EF);
 - Dapper: o `OrmConnectionSecurity` mede o tempo da abertura.
 
-Resultado: `ORM_CONEXAO_INDISPONIVEL` (infraestrutura), log 3004/3102 **sem pilha nem mensagem**, em vez de "exceção
-inesperada" (`ORM_FALHA`, log 3005). Um `InvalidOperationException` **rápido** na abertura, ou fora dela, continua sendo
+Resultado: `ORM_CONEXAO_INDISPONIVEL` (infraestrutura), log 8004/8102 **sem pilha nem mensagem**, em vez de "exceção
+inesperada" (`ORM_FALHA`, log 8005). Um `InvalidOperationException` **rápido** na abertura, ou fora dela, continua sendo
 erro de programação (`ORM_FALHA`): o critério não mascara outras causas.
 
 > [!TIP]
@@ -109,8 +109,8 @@ breaker (`Polly.Core`, ligado por padrão em `OrmOptions.CircuitBreaker`) envolv
 
 - **Conta como falha:** `SqlException` ao abrir (rede, failover, banco indisponível, login recusado) e pool esgotado.
 - **Abre** quando, dentro de `SamplingDuration`, houve pelo menos `MinimumThroughput` aberturas e a proporção de falhas chegou
-  a `FailureRatio`. Aberto, toda abertura falha na hora com `ORM_CONEXAO_INDISPONIVEL`, sem tocar no banco (log 3108 em Debug).
-- Depois de `BreakDuration`, **uma** abertura de teste vai ao banco: sucesso fecha o circuito (log 3107), falha abre de novo.
+  a `FailureRatio`. Aberto, toda abertura falha na hora com `ORM_CONEXAO_INDISPONIVEL`, sem tocar no banco (log 8108 em Debug).
+- Depois de `BreakDuration`, **uma** abertura de teste vai ao banco: sucesso fecha o circuito (log 8107), falha abre de novo.
 - **Um circuito por contexto e tipo de conexão:** a do EF Core (escrita) e as do `IOrmConnectionSecurity.OpenConnectionAsync`
   (Dapper, leitura e escrita). Contextos diferentes não se afetam.
 - **Abertura de teste:** só uma conexão aberta fecha o circuito; cancelamento ou qualquer outra exceção na abertura de
@@ -180,7 +180,7 @@ breaker (`Polly.Core`, ligado por padrão em `OrmOptions.CircuitBreaker`) envolv
 
 | Código | Quando ocorre | O que fazer |
 |---|---|---|
-| `ORM_CONEXAO_INDISPONIVEL` | Falha transitória persistente, rede, failover longo, pool esgotado, login recusado | Ver o log 3004/3102/3008; a borda (fila, cliente) pode repetir mais tarde |
+| `ORM_CONEXAO_INDISPONIVEL` | Falha transitória persistente, rede, failover longo, pool esgotado, login recusado | Ver o log 8004/8102/8008; a borda (fila, cliente) pode repetir mais tarde |
 | `ORM_CONCORRENCIA` | Deadlock em escrita (ou em leitura após as tentativas) | Ler de novo e repetir a escrita, se fizer sentido |
 | `ORM_TEMPO_ESGOTADO` | `CommandTimeoutSeconds` excedido (nunca repetido) | Otimizar a consulta |
 | `ORM_LIMITE_EXCEDIDO` | Busca ou leitura complexa acima do limite | Paginar |
@@ -207,7 +207,7 @@ com idempotência (ex.: chave natural única ou identificador da requisição).
 <details>
 <summary>Como vejo quantas vezes uma leitura foi repetida?</summary>
 
-Pela tag `orm.retries` no trace da operação e pelos logs 3008.
+Pela tag `orm.retries` no trace da operação e pelos logs 8008.
 
 </details>
 

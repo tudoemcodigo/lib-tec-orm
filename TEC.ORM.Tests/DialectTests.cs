@@ -254,7 +254,7 @@ public class DialectTests
 
         await Assert.That(relaxed.Value.ToString()).IsEqualTo("***");
         await Assert.That(relaxed.Value.RelaxedTransportSecurity).IsTrue();
-        // Opção ligada, mas o segredo valida o certificado: sem o aviso 3103
+        // Opção ligada, mas o segredo valida o certificado: sem o aviso 8103
         await Assert.That(strict.Value.RelaxedTransportSecurity).IsFalse();
     }
 }

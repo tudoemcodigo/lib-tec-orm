@@ -12,6 +12,19 @@ Os pacotes da família `TEC.ORM` são lançados de forma sincronizada na mesma v
 
 ---
 
+## [Não lançado]
+
+### 🔄 Alterado
+
+- **Instrumentos de métrica renomeados para `tec.orm.*`** (Doutrina, CMP-OBS-06): `orm.operation.duration` virou `tec.orm.operation.duration` e `orm.circuit.state_changes` virou `tec.orm.circuit.state_changes`. Os nomes `orm.*` ficam **obsoletos por uma versão MINOR**: os dois emitem a mesma medição, com as mesmas tags, e os antigos serão removidos na MINOR seguinte. As constantes `OrmDiagnostics.OperationDurationName` e `CircuitStateChangesName` passam a ter o nome novo; `LegacyOperationDurationName` e `LegacyCircuitStateChangesName` (`[Obsolete]`) guardam o antigo. `Meter`/`ActivitySource` (`TEC.ORM`) e as tags não mudam. Atualize painéis e alertas; se a coleta somar os dois nomes, a contagem dobra.
+- **EventId dos logs movidos para a faixa 8000-8999** (CMP-OBS-07), mantendo o sufixo: 3000-3008 viram 8000-8008, 3100-3108 viram 8100-8108 e 3200-3201 viram 8200-8201. **Filtros, alertas e consultas por EventId 3xxx devem mudar para 8xxx** (a faixa 3000-3999 é do TEC.Security).
+
+### ✅ Testes
+
+- `TelemetryConventionTests`: trava que todo instrumento começa com `tec.orm.` (exceto os aliases obsoletos), que todo `[LoggerMessage]` dos cinco assemblies está em 8000-8999 sem repetição, e que o instrumento novo e o antigo recebem a mesma medição com as mesmas tags.
+
+---
+
 ## [0.0.1] - 2026-10-30
 
 Primeira versão unificada do componente. Os pacotes têm um só alvo, `net10.0` (EF Core 10), sem polyfills. Os quatro provedores usam o pipeline do `TEC.ORM.EntityFrameworkCore` e o mesmo registro. O SQL Server tem testes de integração com o banco real; PostgreSQL, MySQL e Oracle têm testes unitários dos dialetos, de registro e de integração, estes ainda não executados contra os bancos reais (ver [README](README.md#-compatibilidade)).

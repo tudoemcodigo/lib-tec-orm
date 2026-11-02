@@ -16,8 +16,8 @@ namespace TEC.ORM.EntityFrameworkCore.Security;
 /// <remarks>
 /// <para>A política aplicada ao segredo é a do dialeto (<see cref="ISqlDialect.SanitizeAndValidateConnectionString(string, bool, bool, string, int, string?)"/>):
 /// formato válido, servidor e banco informados, criptografia obrigatória e certificado validado (o relaxamento só com
-/// <see cref="OrmOptions.AllowTrustServerCertificate"/>, com aviso 3103 uma vez por tipo de conexão). Recusa vira
-/// <c>ORM_CONEXAO_INVALIDA</c>, com o motivo no log 3101 e nunca trechos da string.</para>
+/// <see cref="OrmOptions.AllowTrustServerCertificate"/>, com aviso 8103 uma vez por tipo de conexão). Recusa vira
+/// <c>ORM_CONEXAO_INVALIDA</c>, com o motivo no log 8101 e nunca trechos da string.</para>
 /// <para>Para rotação de senha sem reiniciar: o segredo é lido a cada nova conexão do EF Core (uma por <c>DbContext</c>) e do
 /// Dapper; habilite o cache do TEC.Vault (<c>EnableSecretCache</c>) para não consultar o cofre a cada abertura.</para>
 /// </remarks>

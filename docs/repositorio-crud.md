@@ -157,8 +157,8 @@ Operações observadas (`orm.operation`, provedor `entityframework`, alvo = nome
 
 | Método | `orm.operation` | Escrita (auditoria) | Repetida em falha transitória |
 |---|---|:---:|:---:|
-| `CreateAsync` / `UpdateAsync` / `DeleteAsync` | `create` / `update` / `delete` | ✅ log 3001 | ❌ |
-| `HardDeleteAsync(id)` / `HardDeleteAsync(spec)` | `hard-delete` / `hard-delete-many` | ✅ log **3007** (`Warning`) | ❌ |
+| `CreateAsync` / `UpdateAsync` / `DeleteAsync` | `create` / `update` / `delete` | ✅ log 8001 | ❌ |
+| `HardDeleteAsync(id)` / `HardDeleteAsync(spec)` | `hard-delete` / `hard-delete-many` | ✅ log **8007** (`Warning`) | ❌ |
 | `GetByIdAsync` / `FindAsync` / `ListAsync` | `get` / `find` / `list` | ❌ | ✅ fora de transação |
 | `GetByIdAsync<TDto>` / `FindAsync<TDto>` / `ListAsync<TDto>` | `get-dto` / `find-dto` / `list-dto` | ❌ | ✅ fora de transação |
 | `ExistsAsync` / `CountAsync` | `exists` / `count` | ❌ | ✅ fora de transação |
@@ -174,7 +174,7 @@ Usos típicos: expurgo de excluídos antigos, eliminação de dados pedida pelo 
 | Quando | Alerta |
 |---|---|
 | Compilação | Toda chamada gera o aviso **`TECORM014`** (também para *overrides* e implementações sem o atributo). Ver [🛑 Diagnósticos](diagnosticos-do-gerador.md#tecorm014--exclusão-física-o-registro-será-excluído-de-fato) |
-| Execução | No sucesso, log de auditoria **3007** em `Warning` (em vez do 3001 em `Information`), com o autor (`ICurrentUser`) e as linhas removidas |
+| Execução | No sucesso, log de auditoria **8007** em `Warning` (em vez do 8001 em `Information`), com o autor (`ICurrentUser`) e as linhas removidas |
 | Trilha histórica | Entidade `[Auditable]` (com `EnableHistoricalAudit`): a linha é lida antes do `DELETE` e a exclusão grava um `OrmAuditRecord` `Deleted` com os valores antigos, na mesma transação (aberta aqui se não houver uma) |
 | Identidade | Entidade `IAuditable` sem identidade autenticada: `ORM_AUDITORIA_SEM_IDENTIDADE`, nada é excluído |
 
@@ -325,7 +325,7 @@ Num repositório que herda de `OrmRepository`, use `IncludingSoftDeleted()` (des
 <details>
 <summary>A leitura falhou uma vez por queda de rede e funcionou na repetição: é esperado?</summary>
 
-Sim. Leituras fora de transação são repetidas até `TransientRetryCount` vezes em falha transitória, com log 3008 e a tag
+Sim. Leituras fora de transação são repetidas até `TransientRetryCount` vezes em falha transitória, com log 8008 e a tag
 `orm.retries` no trace ([🔁 Resiliência](resiliencia.md)).
 
 </details>

@@ -156,7 +156,7 @@ Não há opções de erro. Os limites que geram `ORM_LIMITE_EXCEDIDO` e as novas
 | Severidade ≥ 20 | Erro fatal que encerra a conexão | `ORM_CONEXAO_INDISPONIVEL` |
 | Outro | — | `ORM_FALHA` |
 
-Falhas de infraestrutura vão ao log 3004 com o tipo da exceção e o número do erro, **sem a mensagem**.
+Falhas de infraestrutura vão ao log 8004 com o tipo da exceção e o número do erro, **sem a mensagem**.
 
 #### PostgreSQL, MySQL e Oracle
 
@@ -165,7 +165,7 @@ Cada dialeto tem um tradutor próprio (`SqlServerExceptionTranslator`, `PostgreS
 (`TEC.ORM.EntityFrameworkCore.Dialects`), que aplica a mesma ordem nos quatro bancos: recusas do próprio TEC.ORM (conexão
 recusada pelo cofre ou pela política, auditoria sem identidade, limite da propagação da exclusão lógica),
 `DbUpdateConcurrencyException`, exceção do driver procurada nas `InnerException` (o EF Core embrulha o erro do banco em
-`DbUpdateException`), `TimeoutException` e falha ao abrir a conexão. O número ou o `SQLSTATE` vai ao log 3004 e a mensagem não.
+`DbUpdateException`), `TimeoutException` e falha ao abrir a conexão. O número ou o `SQLSTATE` vai ao log 8004 e a mensagem não.
 
 | Banco | `ORM_CONFLITO` | `ORM_CONCORRENCIA` | `ORM_TEMPO_ESGOTADO` | `ORM_CONEXAO_INDISPONIVEL` |
 |---|---|---|---|---|

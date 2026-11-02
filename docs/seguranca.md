@@ -47,7 +47,7 @@
 | Ameaça | Controle | Onde |
 |---|---|---|
 | Vazamento da string de conexão (repositório, imagem, `appsettings`, log) | Só no cofre; nunca nas opções; `ToString()` = `***`; `Persist Security Info=False` | `OrmConnectionSecurity`, `AddTecOrm` |
-| Conexão sem criptografia / *man-in-the-middle* | `Encrypt=False`/`Optional` recusado; `TrustServerCertificate` só com opt-in e aviso 3103 | `OrmConnectionSecurity` |
+| Conexão sem criptografia / *man-in-the-middle* | `Encrypt=False`/`Optional` recusado; `TrustServerCertificate` só com opt-in e aviso 8103 | `OrmConnectionSecurity` |
 | Injeção de SQL por valor | Parâmetros sempre (`@p0`, `@Nome`, `@__id_0`); `Parameters` imutável | `SqlQuery`, `OrmRepository.HasId` |
 | Injeção ou inferência pela ordenação (`SortBy=PasswordHash`) | Lista branca `[Sortable]`; sem ela, só chave e datas de auditoria (`AllowUnmarkedSortBy = false`); sombra, exclusão lógica e tokens sempre recusados | `OrmRepository` |
 | Escrita pela conexão de leitura | Verificação de somente leitura + login só com `SELECT`; no PostgreSQL, MySQL e Oracle, também a transação `READ ONLY` | `OrmQueryExecutor` |
@@ -127,7 +127,7 @@ sequenceDiagram
 - [ ] `[Sortable]` nas entidades cujo `SortBy` vem da requisição.
 - [ ] Cache do TEC.Vault (`EnableSecretCache`) com duração compatível com a rotação de senha.
 - [ ] `IdentifierLogMode.Hashed` ou `Omitted` se alguma chave for dado pessoal.
-- [ ] Logs do TEC.ORM em `Information`; alerta para os eventos 3004 e 3007.
+- [ ] Logs do TEC.ORM em `Information`; alerta para os eventos 8004 e 8007.
 - [ ] Sem `EnableRetryOnFailure` no `AddTecOrm`.
 - [ ] Health check `tec-orm` no readiness; imagem com ICU.
 - [ ] `TEC.ORM`, `TEC.ORM.EntityFrameworkCore` e o pacote do banco na mesma versão.
@@ -144,7 +144,7 @@ O que muda de um banco para outro é o dialeto:
 | Item | PostgreSQL | MySQL / MariaDB | Oracle |
 |---|---|---|---|
 | Recusado no segredo | `SslMode` `Disable`, `Allow`, `Prefer` | `SslMode=Disabled` (ou `None`) | descritor com algum `ADDRESS` sem `PROTOCOL=TCPS`; EZConnect sem `tcps://` (espaços, tabulações e quebras de linha são normalizados antes da verificação) |
-| Só com `AllowTrustServerCertificate` (aviso 3103) | `SslMode=Require`, que no Npgsql 6 ou superior cifra sem validar o certificado | `Preferred` e `Required` (não validam o certificado; `Preferred` ainda volta a conexão sem TLS) | os casos acima e `SSL_SERVER_DN_MATCH` desligado |
+| Só com `AllowTrustServerCertificate` (aviso 8103) | `SslMode=Require`, que no Npgsql 6 ou superior cifra sem validar o certificado | `Preferred` e `Required` (não validam o certificado; `Preferred` ainda volta a conexão sem TLS) | os casos acima e `SSL_SERVER_DN_MATCH` desligado |
 | Impostos | `Persist Security Info=False`, `Include Error Detail=False`, `Application Name`, `Command Timeout` | `Persist Security Info=False`, `AllowLoadLocalInfile=false`, `Default Command Timeout` (sem `Application Name`: o MySql.Data não tem a chave) | `Persist Security Info=False` (o `Connection Timeout` do segredo fica como está) |
 | Conexão de leitura | `Enlist=false` | `AutoEnlist=false`, `ConnectionReset=true` | `Enlist=false` |
 | Transação das leituras do Dapper | `SET TRANSACTION READ ONLY` | `START TRANSACTION READ ONLY` | `SET TRANSACTION READ ONLY` |
@@ -188,7 +188,7 @@ Fora as exceções do MySQL acima, as palavras valem em qualquer posição: uma 
 
 | Código | Relação com segurança |
 |---|---|
-| `ORM_CONEXAO_INVALIDA` | Segredo fora da política (motivo no log 3101, sem valores) |
+| `ORM_CONEXAO_INVALIDA` | Segredo fora da política (motivo no log 8101, sem valores) |
 | `ORM_CONSULTA_NAO_PERMITIDA` | SQL de escrita bloqueado na conexão de leitura |
 | `ORM_ENTRADA_INVALIDA` | `SortBy` fora da lista branca, parâmetros inválidos |
 | `ORM_LIMITE_EXCEDIDO` | Consulta acima dos limites |
