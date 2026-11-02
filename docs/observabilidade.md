@@ -105,12 +105,10 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 |---|---|
 | `ActivitySourceName` / `MeterName` | `"TEC.ORM"` |
 | `OperationDurationName` | `"tec.orm.operation.duration"` |
-| `LegacyOperationDurationName` | `"orm.operation.duration"` (**obsoleta**, ver [Nomes antigos](#nomes-antigos-dos-instrumentos)) |
 | `EntityFrameworkProvider` / `DapperProvider` | `"entityframework"` / `"dapper"` |
 | `UnknownDbSystem` | `"other_sql"` (sem dialeto; com dialeto, `db.system.name` é o `ISqlDialect.DbSystemName`: `microsoft.sql_server`, `postgresql`, `mysql` ou `oracle.db`) |
 | `CanceledErrorType` | `"canceled"` |
 | `CircuitStateChangesName` | `"tec.orm.circuit.state_changes"` |
-| `LegacyCircuitStateChangesName` | `"orm.circuit.state_changes"` (**obsoleta**) |
 
 | Sinal | Nome | Atributos |
 |---|---|---|
@@ -120,14 +118,6 @@ Implementação: `OrmOperationRunner(ILogger<OrmOperationRunner> logger, OrmOpti
 
 A contagem por operação e resultado vem do próprio histograma (ex.: taxa de erro por entidade = contagem com
 `error.type` ÷ total, agrupado por `orm.target`).
-
-#### Nomes antigos dos instrumentos
-
-Os instrumentos eram `orm.operation.duration` e `orm.circuit.state_changes`. Pela convenção da Doutrina (CMP-OBS-06) passaram a
-`tec.orm.*`. Por **uma versão MINOR** os dois nomes emitem a mesma medição, com as mesmas tags; os nomes `orm.*` estão
-**obsoletos** (as constantes `Legacy*Name` têm `[Obsolete]`) e saem na MINOR seguinte. Migre painéis e alertas para os nomes
-novos. Nome do `Meter`/`ActivitySource` (`TEC.ORM`) e nomes das tags (`orm.provider`, `orm.operation`...) não mudam. Se a
-coleta somar os dois nomes, a contagem dobra: filtre por um deles.
 
 ### Eventos de log
 

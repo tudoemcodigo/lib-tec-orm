@@ -38,19 +38,11 @@ public static class OrmDiagnostics
     /// <summary>Histograma da duração das operações (segundos).</summary>
     public const string OperationDurationName = "tec.orm.operation.duration";
 
-    /// <summary>Nome antigo do histograma de duração, emitido junto com o novo por uma versão MINOR.</summary>
-    [Obsolete("Use OperationDurationName (tec.orm.operation.duration). O nome antigo deixa de ser emitido na próxima versão MINOR.")]
-    public const string LegacyOperationDurationName = "orm.operation.duration";
-
     /// <summary>
     /// Contador de mudanças de estado do circuit breaker da abertura de conexões, com <c>orm.connection</c> (<c>escrita</c> ou
     /// <c>leitura</c>) e <c>orm.circuit.state</c> (<c>open</c>, <c>half_open</c>, <c>closed</c>).
     /// </summary>
     public const string CircuitStateChangesName = "tec.orm.circuit.state_changes";
-
-    /// <summary>Nome antigo do contador de estados do circuito, emitido junto com o novo por uma versão MINOR.</summary>
-    [Obsolete("Use CircuitStateChangesName (tec.orm.circuit.state_changes). O nome antigo deixa de ser emitido na próxima versão MINOR.")]
-    public const string LegacyCircuitStateChangesName = "orm.circuit.state_changes";
 
     /// <summary>Provedor das operações de CRUD.</summary>
     public const string EntityFrameworkProvider = "entityframework";
@@ -90,30 +82,19 @@ public static class OrmDiagnostics
     internal static readonly Counter<long> CircuitStateChanges = Meter.CreateCounter<long>(
         CircuitStateChangesName, unit: "{change}", description: "Mudanças de estado do circuit breaker da abertura de conexões.");
 
-    // Coexistência de uma MINOR (CMP-OBS-06): os nomes antigos emitem a mesma medição, com as mesmas tags. Remover na próxima MINOR.
-#pragma warning disable CS0618
-    internal static readonly Histogram<double> LegacyOperationDuration = Meter.CreateHistogram<double>(
-        LegacyOperationDurationName, unit: "s", description: "OBSOLETO: use tec.orm.operation.duration.");
-
-    internal static readonly Counter<long> LegacyCircuitStateChanges = Meter.CreateCounter<long>(
-        LegacyCircuitStateChangesName, unit: "{change}", description: "OBSOLETO: use tec.orm.circuit.state_changes.");
-#pragma warning restore CS0618
-
     /// <summary>Registra uma mudança de estado do circuito.</summary>
     internal static void RecordCircuitState(string connection, string state)
     {
-        var connectionTag = new KeyValuePair<string, object?>(ConnectionTag, connection);
-        var stateTag = new KeyValuePair<string, object?>(CircuitStateTag, state);
         if (CircuitStateChanges.Enabled)
-            CircuitStateChanges.Add(1, connectionTag, stateTag);
-        if (LegacyCircuitStateChanges.Enabled)
-            LegacyCircuitStateChanges.Add(1, connectionTag, stateTag);
+            CircuitStateChanges.Add(1,
+                new KeyValuePair<string, object?>(ConnectionTag, connection),
+                new KeyValuePair<string, object?>(CircuitStateTag, state));
     }
 
     /// <summary>Registra a duração de uma operação. <paramref name="errorType"/> só em falha.</summary>
     internal static void RecordOperation(string dbSystem, string provider, string operation, string target, double seconds, string? errorType)
     {
-        if (!OperationDuration.Enabled && !LegacyOperationDuration.Enabled)
+        if (!OperationDuration.Enabled)
             return;
 
         var tags = new TagList
@@ -125,9 +106,6 @@ public static class OrmDiagnostics
         };
         if (errorType is not null)
             tags.Add(ErrorTypeTag, errorType);
-        if (OperationDuration.Enabled)
-            OperationDuration.Record(seconds, tags);
-        if (LegacyOperationDuration.Enabled)
-            LegacyOperationDuration.Record(seconds, tags);
+        OperationDuration.Record(seconds, tags);
     }
 }

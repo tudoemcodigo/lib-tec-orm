@@ -16,12 +16,18 @@ Os pacotes da família `TEC.ORM` são lançados de forma sincronizada na mesma v
 
 ### 🔄 Alterado
 
-- **Instrumentos de métrica renomeados para `tec.orm.*`** (Doutrina, CMP-OBS-06): `orm.operation.duration` virou `tec.orm.operation.duration` e `orm.circuit.state_changes` virou `tec.orm.circuit.state_changes`. Os nomes `orm.*` ficam **obsoletos por uma versão MINOR**: os dois emitem a mesma medição, com as mesmas tags, e os antigos serão removidos na MINOR seguinte. As constantes `OrmDiagnostics.OperationDurationName` e `CircuitStateChangesName` passam a ter o nome novo; `LegacyOperationDurationName` e `LegacyCircuitStateChangesName` (`[Obsolete]`) guardam o antigo. `Meter`/`ActivitySource` (`TEC.ORM`) e as tags não mudam. Atualize painéis e alertas; se a coleta somar os dois nomes, a contagem dobra.
+- **Instrumentos de métrica renomeados para `tec.orm.*` sem coexistência** (Doutrina, CMP-OBS-06 e ADR 0009: nenhum consumidor em produção, então o nome antigo foi removido, sem emissão em paralelo). Quem tiver painel ou alerta com o nome antigo deve trocá-lo; a série antiga deixa de existir. `Meter`/`ActivitySource` (`TEC.ORM`) e as tags não mudam. As constantes `OrmDiagnostics.OperationDurationName` e `CircuitStateChangesName` têm o nome novo.
+
+  | Antigo | Novo |
+  |---|---|
+  | `orm.operation.duration` | `tec.orm.operation.duration` |
+  | `orm.circuit.state_changes` | `tec.orm.circuit.state_changes` |
+
 - **EventId dos logs movidos para a faixa 8000-8999** (CMP-OBS-07), mantendo o sufixo: 3000-3008 viram 8000-8008, 3100-3108 viram 8100-8108 e 3200-3201 viram 8200-8201. **Filtros, alertas e consultas por EventId 3xxx devem mudar para 8xxx** (a faixa 3000-3999 é do TEC.Security).
 
 ### ✅ Testes
 
-- `TelemetryConventionTests`: trava que todo instrumento começa com `tec.orm.` (exceto os aliases obsoletos), que todo `[LoggerMessage]` dos cinco assemblies está em 8000-8999 sem repetição, e que o instrumento novo e o antigo recebem a mesma medição com as mesmas tags.
+- `TelemetryConventionTests`: trava que todo instrumento começa com `tec.orm.`, que os nomes antigos (`orm.operation.duration`, `orm.circuit.state_changes`) não existem mais, que todo `[LoggerMessage]` dos cinco assemblies está em 8000-8999 sem repetição, e que a duração é registrada com as tags esperadas.
 
 ---
 

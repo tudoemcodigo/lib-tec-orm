@@ -14,9 +14,8 @@ public class TelemetryConventionTests
     private const int FirstEventId = 8000;
     private const int LastEventId = 8999;
 
-#pragma warning disable CS0618
-    private static readonly string[] LegacyNames = [OrmDiagnostics.LegacyOperationDurationName, OrmDiagnostics.LegacyCircuitStateChangesName];
-#pragma warning restore CS0618
+    /// <summary>Nomes anteriores à convenção (ADR 0009 da Doutrina): renomeados sem coexistência, não podem voltar.</summary>
+    private static readonly string[] RemovedNames = ["orm.operation.duration", "orm.circuit.state_changes"];
 
     private static List<string> PublishedInstruments()
     {
@@ -35,25 +34,26 @@ public class TelemetryConventionTests
     }
 
     [Test]
-    public async Task Every_instrument_starts_with_tec_orm_except_the_deprecated_aliases()
+    public async Task Every_instrument_starts_with_tec_orm()
     {
         var names = PublishedInstruments();
 
         await Assert.That(names).Contains(OrmDiagnostics.OperationDurationName);
         await Assert.That(names).Contains(OrmDiagnostics.CircuitStateChangesName);
-        foreach (var name in names.Except(LegacyNames))
+        await Assert.That(names.Count).IsEqualTo(2);
+        foreach (var name in names)
             await Assert.That(name.StartsWith("tec.orm.", StringComparison.Ordinal)).IsTrue();
+        await Assert.That(OrmDiagnostics.Meter.Name).IsEqualTo("TEC.ORM");
+        await Assert.That(OrmDiagnostics.ActivitySourceName).IsEqualTo("TEC.ORM");
     }
 
     [Test]
-    public async Task Deprecated_aliases_coexist_for_one_minor()
+    public async Task Removed_pre_convention_names_are_not_emitted_anymore()
     {
         var names = PublishedInstruments();
 
-        foreach (var legacy in LegacyNames)
-            await Assert.That(names).Contains(legacy);
-        await Assert.That(OrmDiagnostics.Meter.Name).IsEqualTo("TEC.ORM");
-        await Assert.That(OrmDiagnostics.ActivitySourceName).IsEqualTo("TEC.ORM");
+        foreach (var removed in RemovedNames)
+            await Assert.That(names).DoesNotContain(removed);
     }
 
     [Test]
@@ -82,7 +82,7 @@ public class TelemetryConventionTests
     }
 
     [Test]
-    public async Task New_and_deprecated_duration_instruments_receive_the_same_measurement_with_unchanged_tags()
+    public async Task Duration_instrument_records_the_operation_with_unchanged_tags()
     {
         string target = "Alvo" + Guid.NewGuid().ToString("N")[..8];
         using var telemetry = new OrmTelemetryListener(target);
@@ -92,11 +92,9 @@ public class TelemetryConventionTests
         await runner.ExecuteAsync(operation, _ => Task.FromResult(TEC.Core.Common.Results.Result<string>.Success("ok")), CancellationToken.None);
 
         var current = telemetry.Measurements.Single();
-        var legacy = telemetry.LegacyMeasurements.Single();
-        await Assert.That(legacy.Seconds).IsEqualTo(current.Seconds);
-        await Assert.That(legacy.Tags.OrderBy(t => t.Key).Select(t => (t.Key, t.Value)))
-            .IsEquivalentTo(current.Tags.OrderBy(t => t.Key).Select(t => (t.Key, t.Value)));
+        await Assert.That(current.Seconds).IsGreaterThanOrEqualTo(0);
         await Assert.That(current.Tags.Keys.Order())
             .IsEquivalentTo(new[] { "db.system.name", "orm.operation", "orm.provider", "orm.target" }.Order());
+        await Assert.That(current.Tags["orm.target"]).IsEqualTo(target);
     }
 }
