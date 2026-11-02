@@ -44,7 +44,7 @@
         "type": "Direct",
         "requested": "[0.0.1, )",
         "resolved": "0.0.1",
-        "contentHash": "XBHFp19aeNAGu3MVofUnDgG2dxD/8jhj+gOzUM2pZ5+PiH3KlVrntqQMx63IP5okiOL8Pbf5YQaqsVrBVOYa1g==",
+        "contentHash": "YGIwLts8GmWOynTs6vvpT57r38qnwsY64ghCFK+I7eb0OojbZTuZDNfBcN1ipZxXAvGMsna6dR0+XH5ybSQ2Bw==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.13",
           "Microsoft.Extensions.Configuration": "10.0.13",
@@ -574,7 +574,7 @@
         "type": "CentralTransitive",
         "requested": "[0.0.1, )",
         "resolved": "0.0.1",
-        "contentHash": "N7Dh2O01oCKdNaUyltX/kwBmfo7Pw6rnTBV2MGPJBKiG8mTIlddtQGmuFK4WsEWqxBPVw2sfL2UqbWoc1Tkw7w==",
+        "contentHash": "9Mh9gr7Ian3QRiH314MR89nX2Cc1vdsMwq7LiqA6Pfiz0g82VhQB0xmcnAZMu0z7WRpFPmlzQsm2+c2tJq5iuA==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.13",
           "Microsoft.Extensions.Configuration": "10.0.13",

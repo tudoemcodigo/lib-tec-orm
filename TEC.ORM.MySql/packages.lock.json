@@ -312,7 +312,7 @@
         "type": "CentralTransitive",
         "requested": "[0.0.1, )",
         "resolved": "0.0.1",
-        "contentHash": "N7Dh2O01oCKdNaUyltX/kwBmfo7Pw6rnTBV2MGPJBKiG8mTIlddtQGmuFK4WsEWqxBPVw2sfL2UqbWoc1Tkw7w==",
+        "contentHash": "9Mh9gr7Ian3QRiH314MR89nX2Cc1vdsMwq7LiqA6Pfiz0g82VhQB0xmcnAZMu0z7WRpFPmlzQsm2+c2tJq5iuA==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.13",
           "Microsoft.Extensions.Configuration": "10.0.13",
