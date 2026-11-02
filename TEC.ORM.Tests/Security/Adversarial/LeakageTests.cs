@@ -172,7 +172,7 @@ public class LeakageTests
             Result result = dto ? await executor.QueryAsync<NumberRow>(query) : await executor.QueryAsync<long>(query);
 
             await Assert.That(result.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
-            await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3005)).IsTrue();
+            await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8005)).IsTrue();
             await AssertNoSecretAsync(secret, result, logs, telemetry);
         });
     }

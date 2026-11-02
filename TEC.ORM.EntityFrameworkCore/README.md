@@ -9,7 +9,7 @@ Motor de persistência base e agnóstico da família **TEC.ORM**, integrando **E
 ## O que fornece
 
 - **Registro comum (`AddTecOrmDbContext`)**: o pipeline que os quatro provedores usam: conexão do cofre, interceptores (conexão, exclusão lógica, autoria, trilha histórica), identidade da auditoria pelo `ICurrentUser`, convenções, logs sem dados sensíveis, `CommandTimeout` e mapeador de exceções do `TEC.Cqrs`.
-- **Repositório Genérico (`OrmRepository<TEntity, TKey>`)**: Implementação das operações de CRUD, paginação, exclusão lógica propagada e exclusão física com log de auditoria (3007); em entidade `[Auditable]`, a exclusão física também gera `OrmAuditRecord` (`Deleted`).
+- **Repositório Genérico (`OrmRepository<TEntity, TKey>`)**: Implementação das operações de CRUD, paginação, exclusão lógica propagada e exclusão física com log de auditoria (8007); em entidade `[Auditable]`, a exclusão física também gera `OrmAuditRecord` (`Deleted`).
 - **Consultas Rápidas (`OrmQueryExecutor`)**: Execução de SQL de alta performance com Dapper, limite estrito de linhas (`MaxQueryRows`), cancelamento de comandos, transação `READ ONLY` nos bancos que a têm e o prefixo de parâmetro do dialeto.
 - **Trilha Histórica de Auditoria (`HistoricalAuditInterceptor`)**: Gravação atômica de diffs (`OldValues` / `NewValues`) em JSON para entidades `[Auditable]`, com mascaramento `[SensitiveData]`, exclusão `[AuditIgnore]`, limite por valor (`MaxAuditValueLength`) e a chave real das inclusões com chave gerada pelo banco.
 - **Idempotência no Banco (`EfIdempotencyStore`)**: Armazenamento e concorrência para chaves de idempotência integradas ao `TEC.Cqrs`, com o SQL atômico e a collation binária de cada banco.

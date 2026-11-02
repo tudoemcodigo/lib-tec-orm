@@ -54,7 +54,7 @@ public class ObservabilityTests
 
         var entry = logs.Entries.Single();
         await Assert.That(entry.Level).IsEqualTo(LogLevel.Information);
-        await Assert.That(entry.EventId.Id).IsEqualTo(3001);
+        await Assert.That(entry.EventId.Id).IsEqualTo(8001);
         await Assert.That(entry.Text).Contains($"create de {target} (42)");
     }
 
@@ -73,7 +73,7 @@ public class ObservabilityTests
 
         var entry = logs.Entries.Single();
         await Assert.That(entry.Level).IsEqualTo(LogLevel.Warning);
-        await Assert.That(entry.EventId.Id).IsEqualTo(3007);
+        await Assert.That(entry.EventId.Id).IsEqualTo(8007);
         await Assert.That(entry.Text).Contains("EXCLUSÃO FÍSICA");
         await Assert.That(entry.Text).Contains($"hard-delete de {target} (42)");
     }
@@ -100,7 +100,7 @@ public class ObservabilityTests
         }, CancellationToken.None);
 
         var entry = logs.Entries.Single();
-        await Assert.That(entry.EventId.Id).IsEqualTo(3007);
+        await Assert.That(entry.EventId.Id).IsEqualTo(8007);
         await Assert.That(entry.Text).Contains(expected);
         await Assert.That(entry.Text).Contains("removeu 1234 linha(s)");
     }
@@ -142,7 +142,7 @@ public class ObservabilityTests
 
         await Assert.That(format.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
         await Assert.That(dapper.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
-        await Assert.That(logs.Entries.Count(e => e.EventId.Id == 3005)).IsEqualTo(2);
+        await Assert.That(logs.Entries.Count(e => e.EventId.Id == 8005)).IsEqualTo(2);
         await Assert.That(logs.AllText).DoesNotContain(value);
         // Tipo e pilha continuam: dá para achar o mapeamento errado
         await Assert.That(logs.AllText).Contains("System.FormatException");
@@ -215,7 +215,7 @@ public class ObservabilityTests
 
         await Assert.That(result.Error!.Code).IsEqualTo(OrmErrors.FailureCode);
         var entry = logs.Entries.Single();
-        await Assert.That(entry.EventId.Id).IsEqualTo(3005);
+        await Assert.That(entry.EventId.Id).IsEqualTo(8005);
         await Assert.That(entry.Text).Contains("InvalidOperationException");
     }
 
@@ -253,7 +253,7 @@ public class ObservabilityTests
             _ => Task.FromResult(Result.Success()), CancellationToken.None);
 
         await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(logs.Entries.Single().EventId.Id).IsEqualTo(3001);
+        await Assert.That(logs.Entries.Single().EventId.Id).IsEqualTo(8001);
     }
 
     // ---------- Identificador no log ----------

@@ -105,7 +105,7 @@ public class RevisionIntegrationTests
     [Test]
     public async Task Hard_delete_audit_log_has_actor_and_rows()
     {
-        // SEG-02: o 3007 responde "quem" e "quanto", inclusive no lote
+        // SEG-02: o 8007 responde "quem" e "quanto", inclusive no lote
         var logs = new CapturingLoggerProvider();
         string suffix = Unique();
         await WithScopeAsync(logs, async services =>
@@ -121,7 +121,7 @@ public class RevisionIntegrationTests
             await Assert.That(removed.Value).IsEqualTo(3L);
         }, register: services => services.AddScoped<ICurrentUser>(_ => new Operator("7f3c6a1e-0d2b-4c55-9a8e-2b1d4c6e8f00")));
 
-        var entry = logs.Entries.Single(e => e.EventId.Id == 3007);
+        var entry = logs.Entries.Single(e => e.EventId.Id == 8007);
         await Assert.That(entry.Text).Contains("por 7f3c6a1e-0d2b-4c55-9a8e-2b1d4c6e8f00 removeu 3 linha(s)");
     }
 }

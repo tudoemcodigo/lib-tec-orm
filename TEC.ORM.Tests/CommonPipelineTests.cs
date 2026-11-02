@@ -110,7 +110,7 @@ public class CommonPipelineTests
         await Assert.That(async () => await security.OpenConnectionAsync(OrmConnectionKind.ReadOnly, cancel.Token))
             .Throws<OperationCanceledException>();
         // Nada de "falha ao abrir a conexão" no log: cancelamento não é indisponibilidade do banco
-        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3102)).IsFalse();
+        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8102)).IsFalse();
     }
 
     [Test]
@@ -123,7 +123,7 @@ public class CommonPipelineTests
 
         await Assert.That(result.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
         await Assert.That(logs.AllText).DoesNotContain("usuario-secreto");
-        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3102)).IsTrue();
+        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8102)).IsTrue();
     }
 
     [Test]

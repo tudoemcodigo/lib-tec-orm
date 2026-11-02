@@ -73,17 +73,18 @@ internal sealed class OrmTelemetryListener : IDisposable
         {
             InstrumentPublished = (instrument, listener) =>
             {
-                if (instrument.Meter.Name == OrmDiagnostics.MeterName && instrument.Name == OrmDiagnostics.OperationDurationName)
+                if (instrument.Meter.Name == OrmDiagnostics.MeterName
+                    && (instrument.Name == OrmDiagnostics.OperationDurationName || instrument.Name == LegacyName))
                     listener.EnableMeasurementEvents(instrument);
             }
         };
-        _meter.SetMeasurementEventCallback<double>((_, value, tags, _) =>
+        _meter.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
         {
             var copy = new Dictionary<string, object?>();
             foreach (var tag in tags)
                 copy[tag.Key] = tag.Value;
             if (Equals(copy.GetValueOrDefault("orm.target"), target))
-                Measurements.Enqueue((value, copy));
+                (instrument.Name == LegacyName ? LegacyMeasurements : Measurements).Enqueue((value, copy));
         });
         _meter.Start();
     }
@@ -91,6 +92,13 @@ internal sealed class OrmTelemetryListener : IDisposable
     public ConcurrentQueue<Activity> Activities { get; } = new();
 
     public ConcurrentQueue<(double Seconds, Dictionary<string, object?> Tags)> Measurements { get; } = new();
+
+    /// <summary>Medições do nome antigo (<c>orm.operation.duration</c>), emitido junto com o novo por uma MINOR.</summary>
+    public ConcurrentQueue<(double Seconds, Dictionary<string, object?> Tags)> LegacyMeasurements { get; } = new();
+
+#pragma warning disable CS0618
+    private const string LegacyName = OrmDiagnostics.LegacyOperationDurationName;
+#pragma warning restore CS0618
 
     public void Dispose()
     {

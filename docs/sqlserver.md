@@ -147,7 +147,7 @@ implementações do TEC.Security); para um `ICurrentUser` que dependa do estado 
 
 Implementação: `OrmConnectionSecurity(ISecretReader secrets, OrmOptions options, ILogger<OrmConnectionSecurity> logger,
 ISqlDialect? dialect = null, TimeProvider? time = null)`. Conexões derivadas pelo EF Core sem servidor (ex.: `master`, para
-criar o banco) recebem o segredo mantendo só o banco pedido. Falha ao abrir: a conexão é descartada, o log 3102 leva só o
+criar o banco) recebem o segredo mantendo só o banco pedido. Falha ao abrir: a conexão é descartada, o log 8102 leva só o
 tipo da exceção e o número do erro e o resultado é o erro traduzido; **pool esgotado** (`InvalidOperationException` do
 SqlClient) vira `ORM_CONEXAO_INDISPONIVEL`, sem pilha no log. Outras exceções (erro de programação) não são disfarçadas de
 indisponibilidade: sobem como estão.
@@ -157,14 +157,14 @@ indisponibilidade: sobem como estão.
 ```mermaid
 flowchart TD
     A["Conexão ReadWrite ou ReadOnly"] --> B["ISecretReader.GetSecretAsync(nome)"]
-    B -- falha --> E1["Log 3100 + ORM_CONEXAO_INDISPONIVEL"]
+    B -- falha --> E1["Log 8100 + ORM_CONEXAO_INDISPONIVEL"]
     B -- ok --> C{"Formato válido,<br/>servidor e banco?"}
-    C -- não --> E2["Log 3101 + ORM_CONEXAO_INVALIDA"]
+    C -- não --> E2["Log 8101 + ORM_CONEXAO_INVALIDA"]
     C -- sim --> F{"Encrypt=False/Optional?"}
     F -- sim --> E2
     F -- não --> G{"TrustServerCertificate=True?"}
     G -->|"sem AllowTrustServerCertificate"| E2
-    G -->|"com a opção"| W["Log 3103 (aviso)"]
+    G -->|"com a opção"| W["Log 8103 (aviso)"]
     G -- não --> H["Impõe Persist Security Info=False,<br/>Application Name, Command Timeout"]
     W --> H
     H --> K["Conexão pronta (ToString mascarado)"]
@@ -172,11 +172,11 @@ flowchart TD
 
 | Regra | Se violada |
 |---|---|
-| Segredo existe e é legível | `ORM_CONEXAO_INDISPONIVEL` + 3100 (só o tipo da conexão e o código) |
-| Formato válido de string de conexão | `ORM_CONEXAO_INVALIDA` + 3101 "formato inválido" (a exceção do parse nunca é registrada) |
-| `Server` e `Database` informados | 3101 "servidor não informado" / "banco de dados não informado" |
-| `Encrypt` diferente de `False`/`Optional` | 3101 "criptografia desabilitada (Encrypt=False)" |
-| `TrustServerCertificate=True` só com `AllowTrustServerCertificate` | 3101 "TrustServerCertificate=True não permitido" |
+| Segredo existe e é legível | `ORM_CONEXAO_INDISPONIVEL` + 8100 (só o tipo da conexão e o código) |
+| Formato válido de string de conexão | `ORM_CONEXAO_INVALIDA` + 8101 "formato inválido" (a exceção do parse nunca é registrada) |
+| `Server` e `Database` informados | 8101 "servidor não informado" / "banco de dados não informado" |
+| `Encrypt` diferente de `False`/`Optional` | 8101 "criptografia desabilitada (Encrypt=False)" |
+| `TrustServerCertificate=True` só com `AllowTrustServerCertificate` | 8101 "TrustServerCertificate=True não permitido" |
 
 Rotação de senha sem reiniciar: o segredo é lido a cada nova conexão do EF Core (uma por `DbContext`) e do Dapper; com o
 cache do TEC.Vault (`EnableSecretCache`), a nova senha vale quando o cache expira.
@@ -190,7 +190,7 @@ cache do TEC.Vault (`EnableSecretCache`), a nova senha vale quando o cache expir
 | `AddTecOrm(this IHealthChecksBuilder builder, string name = "tec-orm", HealthStatus failureStatus = HealthStatus.Unhealthy, IEnumerable<string>? tags = null, TimeSpan? timeout = null)` | `IHealthChecksBuilder` | Abre uma conexão `ReadWrite` pelo `IOrmConnectionSecurity` e executa `SELECT 1` |
 | `ReadyTag` / `DatabaseTag` | `const string` | `"ready"` / `"database"` (as mesmas do TEC.Observability) |
 
-Falha: `failureStatus` com **só o código do erro** na descrição e log 3104. Tags padrão `ready` e `database` (informar
+Falha: `failureStatus` com **só o código do erro** na descrição e log 8104. Tags padrão `ready` e `database` (informar
 `tags` substitui as duas); tempo limite padrão de 5 s.
 
 ```csharp
@@ -248,9 +248,9 @@ builder.Services.AddTecOrm<ReportsContext>(orm =>
 |---|---|---|
 | `InvalidConfigurationException` (TEC.Core) | Opções inválidas no `AddTecOrm` (mensagem só com o nome, ex.: `TecOrm:ConnectionSecretName`) | Corrigir a opção |
 | `InvalidOperationException` | `AddTecOrm<TContext>` duas vezes; `OrmRepository` sobre contexto sem o filtro de exclusão lógica | Registrar uma vez; aplicar as convenções |
-| `ORM_CONEXAO_INDISPONIVEL` | Segredo indisponível (3100), login recusado ou rede (3102), pool esgotado, erro transitório do Azure SQL | Ver o log; conferir permissão no cofre e no banco |
-| `ORM_CONEXAO_INVALIDA` | Segredo fora da política (3101) | Corrigir o segredo |
-| Health check `Unhealthy` com `ORM_...` | Mesmas causas (3104) | Idem |
+| `ORM_CONEXAO_INDISPONIVEL` | Segredo indisponível (8100), login recusado ou rede (8102), pool esgotado, erro transitório do Azure SQL | Ver o log; conferir permissão no cofre e no banco |
+| `ORM_CONEXAO_INVALIDA` | Segredo fora da política (8101) | Corrigir o segredo |
+| Health check `Unhealthy` com `ORM_...` | Mesmas causas (8104) | Idem |
 
 ---
 

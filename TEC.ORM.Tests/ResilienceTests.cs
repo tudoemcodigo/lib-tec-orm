@@ -75,7 +75,7 @@ public class ResilienceTests
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).IsEqualTo(42);
         await Assert.That(attempts).IsEqualTo(3);
-        await Assert.That(logs.Entries.Count(e => e.EventId.Id == 3008)).IsEqualTo(2);
+        await Assert.That(logs.Entries.Count(e => e.EventId.Id == 8008)).IsEqualTo(2);
     }
 
     [Test]
@@ -237,9 +237,9 @@ public class ResilienceTests
         var result = await runner.ExecuteAsync<int>(Read(), _ => throw exception, CancellationToken.None);
 
         await Assert.That(result.Error!.Code).IsEqualTo(OrmErrors.ConnectionUnavailableCode);
-        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3005)).IsFalse();
+        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8005)).IsFalse();
         await Assert.That(logs.AllText).DoesNotContain("mensagem-do-pool-que-nao-vai-para-o-log");
-        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 3004 && e.Level == LogLevel.Error)).IsTrue();
+        await Assert.That(logs.Entries.Any(e => e.EventId.Id == 8004 && e.Level == LogLevel.Error)).IsTrue();
     }
 
     [Test]

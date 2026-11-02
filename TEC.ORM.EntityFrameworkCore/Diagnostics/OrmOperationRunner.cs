@@ -50,12 +50,12 @@ public sealed class OrmOperation(string provider, string operation, string targe
     public bool IsRetryable { get; init; }
 
     /// <summary>
-    /// Autor da operação (id do <c>ICurrentUser</c>), registrado no log da exclusão física (3007) conforme
+    /// Autor da operação (id do <c>ICurrentUser</c>), registrado no log da exclusão física (8007) conforme
     /// <see cref="IdentifierLogMode"/>. <c>null</c> sem identidade.
     /// </summary>
     public string? Actor { get; set; }
 
-    /// <summary>Linhas afetadas, registradas no log da exclusão física (3007). <c>null</c> se não informado.</summary>
+    /// <summary>Linhas afetadas, registradas no log da exclusão física (8007). <c>null</c> se não informado.</summary>
     public long? AffectedRows { get; set; }
 }
 

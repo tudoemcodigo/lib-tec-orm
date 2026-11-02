@@ -196,7 +196,7 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// é desligado; os demais filtros globais da aplicação continuam valendo. Se a instância estiver rastreada no contexto,
     /// ela é desanexada (com os <i>owned</i>); dependentes rastreados removidos pela cascata do banco não são desanexados.</para>
     /// <para>Exige um provedor relacional (o InMemory não executa <c>ExecuteDelete</c>) e não suporta herança TPT/TPC.</para>
-    /// <para>Auditoria: o log 3007 registra o autor (<c>ICurrentUser</c>) e as linhas removidas. Em entidade
+    /// <para>Auditoria: o log 8007 registra o autor (<c>ICurrentUser</c>) e as linhas removidas. Em entidade
     /// <see cref="IAuditable"/>, sem identidade autenticada a exclusão é recusada (<see cref="OrmErrors.AuditIdentityRequired"/>),
     /// como nas demais gravações. Em entidade <c>[Auditable]</c> com a trilha histórica ligada, a linha é lida antes do
     /// <c>DELETE</c> e a exclusão gera um <c>OrmAuditRecord</c> (<c>Deleted</c>, com os valores antigos), na mesma transação
@@ -242,7 +242,7 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     /// <inheritdoc />
     /// <remarks>
     /// <para>Um único <c>DELETE ... WHERE</c> no banco, como em <see cref="HardDeleteAsync(TKey, CancellationToken)"/> (mesma
-    /// auditoria: autor e linhas removidas no log 3007). Instâncias rastreadas no contexto não são desanexadas (o critério pode
+    /// auditoria: autor e linhas removidas no log 8007). Instâncias rastreadas no contexto não são desanexadas (o critério pode
     /// não ser avaliável em memória): não as regrave.</para>
     /// <para>Em entidade <c>[Auditable]</c> com a trilha histórica ligada, as linhas que atendem ao critério são lidas antes
     /// (no máximo <see cref="OrmOptions.MaxFindResults"/>; acima disso, <c>ORM_LIMITE_EXCEDIDO</c> sem excluir nada) e removidas
@@ -320,7 +320,7 @@ public class OrmRepository<TEntity, TKey>(DbContext context, IOrmOperationRunner
     }
 
     /// <summary>
-    /// Autor da exclusão física para o log de auditoria (3007). Entidade <see cref="IAuditable"/> sem identidade autenticada:
+    /// Autor da exclusão física para o log de auditoria (8007). Entidade <see cref="IAuditable"/> sem identidade autenticada:
     /// recusada, como as demais gravações dela (falha fechada); devolve o erro.
     /// </summary>
     private Error? IdentifyHardDelete(OrmOperation operation)

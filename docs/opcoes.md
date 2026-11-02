@@ -95,7 +95,7 @@ builder.Services.AddTecOrm<SalesContext>(orm =>
 | `ConnectionSecretName` | `string` | `""` (**obrigatório**) | não vazio | Segredo no TEC.Vault com a conexão de leitura e escrita (EF Core) |
 | `ReadOnlyConnectionSecretName` | `string?` | `null` | se informado, não vazio | Segredo das leituras complexas (login só com `SELECT`); `null` usa o principal |
 | `ApplicationName` | `string` | `"TEC.ORM"` | 1 a 128 caracteres | `Application Name` da conexão (`sys.dm_exec_sessions` no SQL Server; `application_name` no PostgreSQL). Não aplicado no MySQL (o MySql.Data não tem a chave) nem no Oracle |
-| `AllowTrustServerCertificate` | `bool` | `false` | — | Aceita `TrustServerCertificate=True` no segredo (só desenvolvimento; log 3103). No PostgreSQL libera `SslMode=Require`; no MySQL, `Preferred` e `Required`; no Oracle, conexão sem `TCPS` validado ([🛡️ Segurança](seguranca.md#provedores-postgresql-mysql-e-oracle)) |
+| `AllowTrustServerCertificate` | `bool` | `false` | — | Aceita `TrustServerCertificate=True` no segredo (só desenvolvimento; log 8103). No PostgreSQL libera `SslMode=Require`; no MySQL, `Preferred` e `Required`; no Oracle, conexão sem `TCPS` validado ([🛡️ Segurança](seguranca.md#provedores-postgresql-mysql-e-oracle)) |
 | `CommandTimeoutSeconds` | `int` | `30` (`DefaultCommandTimeoutSeconds`) | 1 a 600 | Tempo limite de cada comando, no EF Core (opção do provedor) e no Dapper. Não altera o tempo de abertura da conexão |
 | `MaxPageSize` | `int` | `100` | 1 a 10.000 | Itens máximos por página |
 | `MaxPageOffset` | `int` | `10000` | 0 a 100.000.000 | Itens máximos pulados pela listagem (`(Page - 1) * PageSize`); acima, `ORM_ENTRADA_INVALIDA` sem ir ao banco (o `OFFSET` profundo ordena e descarta as linhas anteriores a cada chamada) |

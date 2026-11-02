@@ -174,7 +174,7 @@ await Assert.That(filter(new Order { CustomerId = customerId, Amount = 50m })).I
 |---|---|---|
 | `ORM_ENTRADA_INVALIDA` | Página nula ou inválida; `SortBy` vazio, longo demais ou fora da lista branca; especificação nula em `FindAsync`/`ExistsAsync` | Responder 400 com o campo de `Error.Field` |
 | `ORM_LIMITE_EXCEDIDO` | `FindAsync` acima de `MaxFindResults` | Trocar por `ListAsync` paginado |
-| `ORM_FALHA` | `Include` com navegação inexistente (erro de programação, log 3005 com a pilha) | Corrigir o caminho; prefira `nameof(...)` |
+| `ORM_FALHA` | `Include` com navegação inexistente (erro de programação, log 8005 com a pilha) | Corrigir o caminho; prefira `nameof(...)` |
 
 ---
 
