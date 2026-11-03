@@ -35,6 +35,7 @@ EF Core · Dapper · Multi-Banco (SQL Server · PostgreSQL · MySQL · Oracle) �
   - [Auditoria com Diffs (`OldValues` / `NewValues`)](#auditoria-com-diffs-oldvalues--newvalues)
   - [Suporte a Atores M2M e ApiKey](#suporte-a-atores-m2m-e-apikey)
   - [Proteção Estrita de Connection String](#proteção-estrita-de-connection-string)
+- [🧩 Diagrama de arquitetura](#-diagrama-de-arquitetura)
 - [⚡ Compatibilidade](#-compatibilidade)
 - [🧪 Testes](#-testes)
 - [🤝 Contribuição](#-contribuição)
@@ -234,6 +235,103 @@ O `ProtectedConnectionString` encapsula as credenciais obtidas dos cofres:
 - **Logs**: O TEC.ORM registra só o tipo da exceção de conexão e o código de erro do banco, sem `Message`. O registro de todos os provedores também desliga `EnableSensitiveDataLogging` e os eventos de erro do EF Core que repetiriam a mensagem do banco.
 
 ---
+
+## 🧩 Diagrama de arquitetura
+
+Componentes e ligações do `TEC.ORM`, gerados pelo [GitDiagram](https://gitdiagram.com/tudoemcodigo/lib-tec-orm) a partir da `main` em 02/11/2026. O diagrama é gerado por IA a partir de uma amostra do código: use-o como mapa de leitura, não como contrato.
+
+```mermaid
+flowchart TD
+
+subgraph group_core["Core contracts"]
+  node_contracts["ORM contracts<br/>[IOrmRepository.cs]"]
+  node_entities["Entity model<br/>[Entity.cs]"]
+  node_sqlquery["SQL query definition<br/>[SqlQuery.cs]"]
+  node_paging["Paging and sorting<br/>[PageRequest.cs]"]
+  node_errors["Standard results<br/>[OrmErrors.cs]"]
+end
+
+subgraph group_runtime["EF Core runtime"]
+  node_registration["ORM registration"]
+  node_options["ORM configuration<br/>[OrmOptions.cs]"]
+  node_repository["Generic repository<br/>[OrmRepository.cs]"]
+  node_queryexecutor["Dapper executor"]
+  node_unitofwork["Unit of work<br/>[OrmUnitOfWork.cs]"]
+end
+
+subgraph group_providers["Database providers"]
+  node_sqlserver["SQL Server provider"]
+  node_postgres["PostgreSQL provider"]
+  node_mysql["MySQL provider"]
+  node_oracle["Oracle provider"]
+end
+
+subgraph group_governance["Data governance"]
+  node_audit["Historical auditing"]
+  node_softdelete["Soft delete"]
+  node_security["Connection security"]
+  node_protectedconnection["Protected credentials"]
+  node_idempotency[("Idempotency store")]
+  node_cleanup["Idempotency cleanup"]
+  node_diagnostics["Resilience and diagnostics"]
+  node_health["Health checks<br/>[OrmHealthCheck.cs]"]
+end
+
+subgraph group_mapping["DTO mapping"]
+  node_generator["DTO source generator"]
+end
+
+node_application(("Application code"))
+node_database[("Relational database")]
+node_vault[("Secret vault")]
+
+node_application -->|"registers provider"| node_registration
+node_registration -->|"configures"| node_options
+node_registration -->|"registers"| node_security
+node_registration -->|"registers"| node_repository
+node_application -->|"uses"| node_contracts
+node_contracts -->|"implemented by"| node_repository
+node_application -->|"defines queries"| node_sqlquery
+node_sqlquery -->|"executes"| node_queryexecutor
+node_application -->|"requests pages"| node_paging
+node_repository -->|"applies paging"| node_paging
+node_repository -->|"returns results"| node_errors
+node_queryexecutor -->|"returns results"| node_errors
+node_repository -->|"uses filters"| node_softdelete
+node_registration -->|"registers interceptor"| node_audit
+node_registration -->|"registers interceptor"| node_softdelete
+node_registration -->|"registers runner"| node_diagnostics
+node_queryexecutor -->|"opens protected connection"| node_security
+node_security -.->|"protects credentials"| node_protectedconnection
+node_cleanup -->|"cleans records"| node_idempotency
+node_application -.->|"coordinates changes"| node_unitofwork
+node_application -.->|"checks health"| node_health
+node_options -->|"configures provider"| node_sqlserver
+node_options -->|"configures provider"| node_postgres
+node_options -->|"configures provider"| node_mysql
+node_options -->|"configures provider"| node_oracle
+node_sqlserver -.->|"connects to"| node_database
+node_postgres -.->|"connects to"| node_database
+node_mysql -.->|"connects to"| node_database
+node_oracle -.->|"connects to"| node_database
+node_application -->|"supplies secrets"| node_vault
+node_generator -->|"generates mappings"| node_application
+node_application -->|"defines entities"| node_entities
+
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_contracts,node_entities,node_sqlquery,node_paging,node_errors toneBlue
+class node_registration,node_options,node_repository,node_queryexecutor,node_unitofwork,node_database,node_vault toneAmber
+class node_sqlserver,node_postgres,node_mysql,node_oracle toneMint
+class node_audit,node_softdelete,node_security,node_protectedconnection,node_idempotency,node_cleanup,node_diagnostics,node_health toneRose
+class node_generator,node_application toneIndigo
+```
 
 ## ⚡ Compatibilidade
 
